@@ -56,7 +56,9 @@ Thumbs.db
 logs/
 
 # Web UI (downloaded from gait_charts releases)
-web/
+/web/
+/build/
+/env/
 
 # Cursor
 .cursor/
