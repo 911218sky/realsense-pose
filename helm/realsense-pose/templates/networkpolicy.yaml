@@ -1,0 +1,85 @@
+{{- if .Values.networkPolicy.enabled }}
+# Allow traffic to API only from Nginx
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-api
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "realsense-pose.api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "realsense-pose.nginx.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.port }}
+---
+# Allow traffic to MongoDB only from API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-mongodb
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "realsense-pose.mongodb.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "realsense-pose.api.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# Allow traffic to Redis only from API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-redis
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "realsense-pose.redis.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "realsense-pose.api.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Allow external traffic to Nginx
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-nginx
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "realsense-pose.nginx.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 80
+{{- end }}

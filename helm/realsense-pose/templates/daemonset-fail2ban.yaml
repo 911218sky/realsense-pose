@@ -1,0 +1,101 @@
+{{- if .Values.fail2ban.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-fail2ban
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+    app.kubernetes.io/component: fail2ban
+spec:
+  selector:
+    matchLabels:
+      {{- include "realsense-pose.fail2ban.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "realsense-pose.fail2ban.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      hostNetwork: true
+      containers:
+        - name: fail2ban
+          image: "{{ .Values.fail2ban.image.repository }}:{{ .Values.fail2ban.image.tag }}"
+          imagePullPolicy: {{ .Values.fail2ban.image.pullPolicy }}
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          env:
+            - name: TZ
+              value: {{ .Values.fail2ban.timezone | quote }}
+            - name: F2B_LOG_LEVEL
+              value: {{ .Values.fail2ban.logLevel | quote }}
+          volumeMounts:
+            - name: fail2ban-config
+              mountPath: /etc/fail2ban/jail.local
+              subPath: jail.local
+              readOnly: true
+            - name: fail2ban-data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.fail2ban.resources | nindent 12 }}
+      volumes:
+        - name: fail2ban-config
+          configMap:
+            name: {{ include "realsense-pose.fullname" . }}-fail2ban-config
+        - name: fail2ban-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-fail2ban-config
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+data:
+  jail.local: |
+    [DEFAULT]
+    bantime = 3600
+    findtime = 300
+    maxretry = 10
+    banaction = iptables-multiport
+    ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+    [nginx-http-auth]
+    enabled = true
+    filter = nginx-http-auth
+    port = http,https
+    logpath = /var/log/nginx/error.log
+    maxretry = 5
+
+    [nginx-limit-req]
+    enabled = true
+    filter = nginx-limit-req
+    port = http,https
+    logpath = /var/log/nginx/error.log
+    maxretry = 10
+    findtime = 120
+    bantime = 7200
+
+    [nginx-botsearch]
+    enabled = true
+    filter = nginx-botsearch
+    port = http,https
+    logpath = /var/log/nginx/access.log
+    maxretry = 2
+    findtime = 60
+    bantime = 86400
+
+    [nginx-ddos]
+    enabled = true
+    filter = nginx-ddos
+    port = http,https
+    logpath = /var/log/nginx/access.log
+    maxretry = 250
+    findtime = 10
+    bantime = 604800
+{{- end }}

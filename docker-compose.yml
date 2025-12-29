@@ -1,0 +1,233 @@
+# =============================================================================
+# RealSense Pose - Production Docker Compose
+# =============================================================================
+# Usage:
+#   Production:  docker compose up -d
+#   Development: docker compose --profile dev up -d
+#   DB only:     docker compose up -d mongo redis
+# =============================================================================
+
+name: realsense_pose
+
+# -----------------------------------------------------------------------------
+# Shared configurations (YAML anchors)
+# -----------------------------------------------------------------------------
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-api-common-env: &api-common-env
+  # Server
+  HOST: 0.0.0.0
+  PORT: 8100
+  PREFIX: ${PREFIX:-/v1}
+  # CORS
+  CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+  CORS_ALLOW_ORIGIN_REGEX: ${CORS_ALLOW_ORIGIN_REGEX:-}
+  # Database connections (use service names)
+  REDIS_URL: redis://redis:6379
+  MONGO_DB: ${MONGO_DB:-nycu_rehab}
+  DB_NAME: ${DB_NAME:-nycu_rehab}
+  MONGO_URI: mongodb://root:${MONGO_ROOT_PASSWORD}@mongo:27017/admin
+  # Web UI
+  SERVE_WEB: ${SERVE_WEB:-1}
+  HOST_DATASET_DIR: ${HOST_DATASET_DIR:-}
+  # Authentication
+  AUTH_ENABLED: ${AUTH_ENABLED:-0}
+  AUTH_CLIENT_SECRETS: ${AUTH_CLIENT_SECRETS:-}
+  AUTH_NONCE_TTL_SECONDS: ${AUTH_NONCE_TTL_SECONDS:-30}
+  AUTH_MAX_BODY_BYTES: ${AUTH_MAX_BODY_BYTES:-0}
+  AUTH_EXEMPT_PATHS: ${AUTH_EXEMPT_PATHS:-}
+  AUTH_TIMESTAMP_TOLERANCE_SECONDS: ${AUTH_TIMESTAMP_TOLERANCE_SECONDS:-30}
+
+x-api-common-volumes: &api-common-volumes
+  - ${HOST_DATA_DIR:-./data}:/app/data
+  - ${HOST_OUTPUTS_DIR:-./outputs}:/app/outputs
+  - ${HOST_DATASET_DIR:-./dataset}:/app/dataset:ro
+
+# -----------------------------------------------------------------------------
+# Services
+# -----------------------------------------------------------------------------
+services:
+  # ---------------------------------------------------------------------------
+  # Reverse Proxy & Security
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: ${NGINX_IMAGE:-nginx}:${NGINX_TAG:-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8100}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - api
+    networks:
+      - frontend
+      - backend
+    logging: *default-logging
+
+  fail2ban:
+    image: ${FAIL2BAN_IMAGE:-crazymax/fail2ban}:${FAIL2BAN_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_fail2ban
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./fail2ban/jail.local:/etc/fail2ban/jail.local:ro
+      - ./fail2ban/filter.d:/etc/fail2ban/filter.d:ro
+      - nginx_logs:/var/log/nginx:ro
+      - fail2ban_data:/data
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      F2B_LOG_LEVEL: ${F2B_LOG_LEVEL:-INFO}
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Application
+  # ---------------------------------------------------------------------------
+  api:
+    image: ${API_IMAGE:-ghcr.io/911218sky/realsense_pose}:${API_TAG:-latest}
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+      args:
+        CLEAN_VENV: ${CLEAN_VENV:-0}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_api
+    restart: unless-stopped
+    expose:
+      - "8100"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=realsense_pose"
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      <<: *api-common-env
+      IS_PROD: ${IS_PROD:-1}
+    volumes: *api-common-volumes
+    networks:
+      - backend
+      - frontend
+    logging: *default-logging
+
+  api_dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_api_dev
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8100}:8100"
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      <<: *api-common-env
+      IS_PROD: 0
+    command:
+      - uvicorn
+      - api.main:app
+      - --reload
+      - --app-dir=./src
+      - --host=0.0.0.0
+      - --port=8100
+    volumes:
+      - ${HOST_DATA_DIR:-./data}:/app/data
+      - ${HOST_OUTPUTS_DIR:-./outputs}:/app/outputs
+      - ${HOST_DATASET_DIR:-./dataset}:/app/dataset:ro
+      # Dev bind mounts for hot reload
+      - ./src:/app/src
+      - ./configs:/app/configs
+      - ${HOST_WEB_DIR:-./web}:/app/web
+    networks:
+      - backend
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Data Stores
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: ${MONGO_IMAGE:-mongo}:${MONGO_TAG:-8.0}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
+    volumes:
+      - ${HOST_MONGO_DIR:-./data/mongo}:/data/db
+    ports:
+      - "${MONGO_PORT:-27015}:27017"
+    networks:
+      - backend
+    logging: *default-logging
+
+  redis:
+    image: ${REDIS_IMAGE:-redis}:${REDIS_TAG:-8-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ${HOST_REDIS_DIR:-./data/redis}:/data
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --dir
+      - /data
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+    networks:
+      - backend
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Auto-Update
+  # ---------------------------------------------------------------------------
+  watchtower:
+    image: ${WATCHTOWER_IMAGE:-containrrr/watchtower}:${WATCHTOWER_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
+      WATCHTOWER_CLEANUP: ${WATCHTOWER_CLEANUP:-true}
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_ROLLING_RESTART: "true"
+      WATCHTOWER_TIMEOUT: 60s
+      TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - --label-enable
+      - --scope=realsense_pose
+    logging: *default-logging
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  nginx_logs:
+    name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_nginx_logs
+  fail2ban_data:
+    name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_fail2ban_data

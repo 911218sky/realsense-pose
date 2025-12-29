@@ -1,0 +1,125 @@
+import gzip
+import io
+from typing import Callable, Iterable, List, Tuple
+
+from starlette.datastructures import Headers
+from starlette.responses import JSONResponse
+
+Header = Tuple[bytes, bytes]
+
+# 移除 headers
+def _remove_headers(headers: Iterable[Header], names: set[bytes]) -> List[Header]:
+    names_l = {n.lower() for n in names}
+    out: List[Header] = []
+    for k, v in headers:
+        if k.lower() in names_l:
+            continue
+        out.append((k, v))
+    return out
+
+# 解壓 gzip
+def _gunzip_limited(data: bytes, max_bytes: int) -> bytes:
+    """
+    解壓 gzip（帶上「解壓後最大大小」上限，避免 gzip bomb / 記憶體爆掉）。
+
+    - max_bytes <= 0：不限制解壓後大小
+    """
+    if max_bytes <= 0:
+        return gzip.decompress(data)
+
+    with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
+        out = f.read(max_bytes + 1)
+    if len(out) > max_bytes:
+        raise ValueError("decompressed too large")
+    return out
+
+
+class PayloadDecodeMiddleware:
+    """
+    解碼前端 interceptor 送來的「自訂二進位 payload」。
+
+    支援：
+    - `X-Payload-Encoding: gzip`（或 `Content-Encoding: gzip`）
+      - 會把「傳輸中的 raw（壓縮後）bytes」存到 `scope['state']['raw_body']`
+      - 會把 request body 換成「解壓後 bytes」，讓下游可以照常用 JSON/Pydantic 解析
+      - 若有 `X-Payload-Content-Type`，會把 `Content-Type` 改回對應類型（例如 `application/json`）
+    """
+
+    def __init__(self, app: Callable, *, max_decompressed_bytes: int = 0) -> None:
+        self.app = app
+        self.max_decompressed_bytes = max(0, int(max_decompressed_bytes))
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # 只有在偵測到 gzip header 時才做 body 讀取/解壓，避免所有請求都付出成本。
+        headers_raw: List[Header] = list(scope.get("headers") or [])
+        headers = Headers(raw=headers_raw)
+
+        x_enc = (headers.get("x-payload-encoding") or "").strip().lower()
+        c_enc = (headers.get("content-encoding") or "").strip().lower()
+        is_gzip = (x_enc == "gzip") or ("gzip" in c_enc)
+
+        if not is_gzip:
+            await self.app(scope, receive, send)
+            return
+
+        # 只讀 body 一次（ASGI receive stream），後面會用 receive2 把「解壓後 bytes」餵回去。
+        body = b""
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message["type"] != "http.request":
+                continue
+            body += message.get("body", b"")
+            more_body = bool(message.get("more_body", False))
+
+        scope.setdefault("state", {})
+        scope["state"]["raw_body"] = body
+        scope["state"]["payload_encoding"] = "gzip"
+
+        try:
+            decoded = _gunzip_limited(body, self.max_decompressed_bytes)
+        except Exception:
+            # gzip 格式不合法或解壓超過上限
+            resp = JSONResponse({"detail": "invalid gzip body"}, status_code=400)
+            await resp(scope, receive, send)
+            return
+
+        # 重寫 headers：
+        # - 移除 encoding 相關提示（避免下游再誤解一次）
+        # - 若有 X-Payload-Content-Type，恢復 Content-Type，讓 JSON 解析正常工作
+        new_headers = _remove_headers(
+            headers_raw,
+            {
+                b"x-payload-encoding",
+                b"x-payload-content-type",
+                b"content-encoding",
+                b"content-length",
+            },
+        )
+
+        # 若有 X-Payload-Content-Type，恢復 Content-Type，讓 JSON 解析正常工作
+        payload_ct = headers.get("x-payload-content-type")
+        if payload_ct:
+            # 移除原本 content-type，並設成 payload 真正的 content-type
+            new_headers = _remove_headers(new_headers, {b"content-type"})
+            new_headers.append((b"content-type", payload_ct.encode("latin-1")))
+
+        # 解壓後內容長度更新
+        new_headers.append((b"content-length", str(len(decoded)).encode("ascii")))
+        scope["headers"] = new_headers
+
+        # 用 receive2 把「解壓後 bytes」餵回去。
+        sent = False
+
+        async def receive2():
+            nonlocal sent
+            if sent:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            sent = True
+            return {"type": "http.request", "body": decoded, "more_body": False}
+
+        await self.app(scope, receive2, send)

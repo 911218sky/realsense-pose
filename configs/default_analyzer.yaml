@@ -1,0 +1,190 @@
+# ====== 基本 I/O ======
+# 輸入 npy：形狀 (N, 34, 3) 的姿態資料（最後一列常是 timestamp）
+npy_file_path: "./outputs/pose.npy"
+
+# 所有輸出（圖片/影片）會存到這個資料夾
+output_dir: "./outputs"
+
+# 若為 true，預設啟用所有可視化輸出（各功能可個別覆寫）
+save_images: false
+
+# ====== 偵測/分析通用參數 ======
+# 用哪個投影做路徑/區域偵測：xz=俯視、xy=前視
+projection: "xz"
+
+# 平滑視窗（秒，越大越平滑、反應越慢；API 預設 0.5s）
+smooth_window_s: 0.5
+
+# 轉彎時所需的最小角速度 (deg/s)
+min_v_abs: 15.0
+
+# 以最大角速度的多少比例來判斷轉彎，小於(最大角速度*flat_frac)則視為平坦
+flat_frac : 0.7
+
+# 座標軸顯示慣例（只影響標籤文字，不改演算法）：
+# standard: X=左右, Y=上下, Z=前後
+# anatomical: X=前後, Y=左右, Z=上下（臨床慣例）
+axis_convention: "anatomical"
+
+
+save_y_height_diff: true
+y_height_diff_config:
+  # 例1：左右腳跟高度（MediaPipe BlazePose：左 29、右 30）
+  - left_joint: 29                   # 左腳跟索引
+    right_joint: 30                  # 右腳跟索引
+    labels: ["Left heel", "Right heel"]
+    ylim: [-20, 80]                  # 固定 Y 軸（公分）
+    save_name: "heel.png"
+
+  # 例2：左右臀部高度（MediaPipe BlazePose：左 23、右 24）
+  - left_joint: 23                   # 左臀部索引
+    right_joint: 24                  # 右臀部索引
+    labels: ["Left hip", "Right hip"]
+    ylim: [-20, 80]
+    save_name: "hip.png"
+
+# ====== 空間頻譜（X(Z) / Y(Z) 對 Z 的 PSD）======
+save_spatial_spectrum: true
+spatial_spectrum_config:
+  pair: ["xz"]                # 一張圖：X對Z 的空間頻譜
+  spec_ylim: [[-80, 20], [-80, 20]] # 各圖 spectrum 的 Y 軸範圍
+  top_k: 5                     # 每張圖標註的主頻數量（可選）
+  dpi: 150
+  save_name: "{pair}_spatial_spectrum_db.png"  # 檔名樣板（會自動填 pair 與 z）
+
+# ====== 每圈左右偏移診斷（較慢）======
+save_per_lap_offset: true
+per_lap_offset_config:
+  k_smooth: 1                      # 側向偏移平滑係數（與 API 相同）
+  fft_band: [0.0, 2.0]             # FFT 顯示頻帶 (Hz)
+  lat_ylim: [-1.0, 1.0]
+  psd_ylim: [-70, 20]
+  theta_ylim: [[-450, 100], [-100, 450]]
+  max_points_plot: null            # 示意取樣點上限（null=不限制）
+  show_samples: true
+  dpi: 150
+  save_name: "per_lap/lap_{lap_idx}_diagnostics.png"
+  fft_params:
+    window: "hann"
+    detrend: "none"
+    scaling: "spectrum"
+    min_nfft: 512
+    pad_to_pow2: true
+    zero_pad_factor: 1.0
+    remove_dc: false
+
+# ====== 多系列 FFT（例如左右腳跟平均等）======
+save_multi_fft_from_series: true
+multi_fft_from_series_config:
+  # joints:
+  #   - [27, 28]          # 例：先對左右腳跟在 Z 軸平均，再做 FFT
+  joints:
+    - [27, 28]
+  labels: ["(L+R ankle)/2"]
+  component: "z"            # 使用哪個座標軸做 FFT（x / y / z）
+  max_peaks: 3
+  dpi: 150
+  figsize: [11.0, 4.0]
+  min_peak_distance_ratio: 0.01
+  min_db: -40.0
+  min_freq: 0.05
+  xlim: null                # 若想限制頻率範圍（Hz）可填 [下, 上]
+  ylim: [-80, 10]           # dB 範圍
+  save_name: "{joints}_multi_fft.png"
+  fft_params:
+    window: "hann"
+    detrend: "none"
+    scaling: "spectrum"
+    min_nfft: 512
+    pad_to_pow2: true
+    zero_pad_factor: 1.0
+    remove_dc: false
+
+# ====== 每分鐘：步頻與步長（上下子圖）======
+save_minutely_cadence_step_length_bars: true
+minutely_cadence_step_length_bars_config:
+  max_minutes: null                 # 只畫前 N 分鐘；null 表示全部
+  dpi: 170
+  figsize_per_minute: 1.0           # 每分鐘在圖上占的寬度（英吋）
+  row_height: 3.2                   # 每個子圖高度（英吋）
+  bar_width: 0.28
+  spm_ylim: [30, 140]               # 步頻 Y 軸（steps/min）
+  steplen_ylim: [0.0, 1.6]          # 步長 Y 軸（公尺）
+  save_name: "minutely_cadence_step_length_bars.png"
+
+# ====== 每分鐘：左右站立/擺動時間（四柱，可分面）======
+save_minutely_stance_swing_bars: true
+minutely_stance_swing_bars_config:
+  max_minutes: null
+  dpi: 170
+  figsize_per_minute: 0.9           # 分鐘多時可調大讓圖寬些
+  row_height: 3.1
+  bar_width: 0.28
+  group_gap: 0.18                   # 同一分鐘內左右柱的間距
+  stance_ylim: [0.2, 1.0]           # 站立期 Y 軸（秒）
+  swing_ylim: [0.2, 1.0]            # 擺動期 Y 軸（秒）
+  save_name: "minutely_stance_swing_bars.png"
+
+# ====== 每分鐘：三段（去程/迴轉/回程）耗時 ======
+save_minutely_stage_duration_bars: true
+minutely_stage_duration_bars_config:
+  max_minutes: null
+  dpi: 170
+  figsize_per_minute: 0.75          # 每分鐘寬度（此圖每組只有 3 柱）
+  bar_width: 0.22
+  group_gap: 0.06
+  capsize: 3.0
+  ylim: null                         # 若想固定 Y（秒）可填 [下, 上]
+  save_name: "minutely_stage_duration_bars.png"
+
+# ====== 每圈左右擺動趨勢（百分比/秒數）熱力圖 ======
+save_swing_info_heatmap: true
+swing_info_heatmap_config:
+  dpi: 150
+  vmin_pct: 30                      # 色階下限（%）
+  vmax_pct: 45                      # 色階上限（%）
+  save_name: "swing_info_heatmap.png"
+
+# ====== 速度熱圖（時間×圈或分鐘）======
+save_speed_heatmap: true
+speed_heatmap_config:
+  dpi: 150
+  width: 300                        # 內插寬度（像素/欄數），越大越細緻
+  vmin: 0.0                         # 速度色階下限（m/s）
+  vmax: 2.5                         # 速度色階上限（m/s）
+  save_name: "speed_heatmap.png"
+
+# ====== 每圈六段耗時（堆疊橫條）======
+save_stage_durations_image: true
+save_stage_durations_image_config:
+  dpi: 190
+  show_seconds: true                # 條內顯示各段秒數
+  show_meters: true                 # 在 2/3/4 段下方標距離（m）
+  row_height: 1                     # 每圈行高（英吋）
+  bar_height: 0.5                   # 條高（相對行高 0~1）
+  min_width_sec: 0.5                # 條太窄時不顯示秒數（秒）
+  meters_gap: 0.08                  # 距離標註與柱的垂直間距
+  min_meters_to_show: 0.03          # 小於此距離就不標
+  save_name: "minutely_stage_duration_bars.png"  # 實際輸出檔名
+
+# ====== 軌跡影片（Top-down）======
+save_trajectory_video: true
+trajectory_video_config:
+  dpi: 110
+  figsize: [7.6, 7.2]               # 單幀圖尺寸（英吋）寬×高
+  draw_radius: false                # 顯示椅/錐的半徑
+  draw_turn_markers: true           # 顯示轉身起訖標記
+  rotate_180: true                  # 旋轉 180°（椅在下、錐在上）
+  fps_out: 24                       # 輸出影片幀率
+  speed: 1.0                        # 回放倍率（1.0=等速）
+  ffmpeg_preset: "veryfast"         # FFmpeg 編碼預設（慢→檔小：slow/medium/fast/veryfast）
+
+  # 可一次輸出多組左右關節的軌跡影片（例如髖、腳跟）
+  joints:
+    - left_joint: 23                # 左臀
+      right_joint: 24               # 右臀
+      save_name: null               # 檔名 null -> 用預設樣板
+
+    - left_joint: 27                # 左腳踝
+      right_joint: 28               # 右腳踝
+      save_name: null

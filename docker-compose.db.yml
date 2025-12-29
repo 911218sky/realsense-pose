@@ -1,0 +1,36 @@
+name: realsense_pose_db
+
+services:
+  mongo:
+    image: mongo:8.0.13
+    container_name: ${MONGO_CONTAINER_NAME:-realsense_pose_mongo}
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
+    volumes:
+      - ${HOST_MONGO_DIR:-./data/mongo}:/data/db
+    ports:
+      # Keep host port 27015 to match existing defaults in code/scripts
+      - "${MONGO_PORT:-27015}:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "test \"$(mongosh --quiet \"mongodb://root:${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}@localhost:27017/admin\" --eval \"db.adminCommand('ping').ok\")\" = \"1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8.4.0
+    container_name: ${REDIS_CONTAINER_NAME:-realsense_pose_redis}
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ${HOST_REDIS_DIR:-./data/redis}:/data
+    command: ["redis-server", "--appendonly", "yes", "--dir", "/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30

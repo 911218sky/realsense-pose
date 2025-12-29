@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-api
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "realsense-pose.api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "realsense-pose.api.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: {{ .Values.api.port | quote }}
+            - name: PREFIX
+              value: {{ .Values.api.prefix | quote }}
+            - name: IS_PROD
+              value: {{ .Values.api.isProd | quote }}
+            - name: SERVE_WEB
+              value: {{ .Values.api.serveWeb | quote }}
+            - name: CORS_ALLOW_ORIGINS
+              value: {{ .Values.api.corsAllowOrigins | quote }}
+            - name: CORS_ALLOW_ORIGIN_REGEX
+              value: {{ .Values.api.corsAllowOriginRegex | quote }}
+            # Database connections
+            - name: REDIS_URL
+              value: {{ include "realsense-pose.redisUrl" . | quote }}
+            - name: MONGO_DB
+              value: {{ .Values.mongodb.auth.database | quote }}
+            - name: DB_NAME
+              value: {{ .Values.mongodb.auth.database | quote }}
+            - name: MONGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "realsense-pose.fullname" . }}-secrets
+                  key: mongo-root-password
+            - name: MONGO_URI
+              value: {{ include "realsense-pose.mongoUri" . | quote }}
+            # Authentication
+            - name: AUTH_ENABLED
+              value: {{ .Values.api.auth.enabled | ternary "1" "0" | quote }}
+            {{- if .Values.api.auth.enabled }}
+            - name: AUTH_CLIENT_SECRETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "realsense-pose.fullname" . }}-secrets
+                  key: auth-client-secrets
+            - name: AUTH_NONCE_TTL_SECONDS
+              value: {{ .Values.api.auth.nonceTtlSeconds | quote }}
+            - name: AUTH_MAX_BODY_BYTES
+              value: {{ .Values.api.auth.maxBodyBytes | quote }}
+            - name: AUTH_EXEMPT_PATHS
+              value: {{ .Values.api.auth.exemptPaths | quote }}
+            - name: AUTH_TIMESTAMP_TOLERANCE_SECONDS
+              value: {{ .Values.api.auth.timestampToleranceSeconds | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: outputs
+              mountPath: /app/outputs
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.prefix }}/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.prefix }}/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          {{- if .Values.api.persistence.data.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "realsense-pose.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: outputs
+          {{- if .Values.api.persistence.outputs.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "realsense-pose.fullname" . }}-outputs
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

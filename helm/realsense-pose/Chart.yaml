@@ -1,0 +1,16 @@
+apiVersion: v2
+name: realsense-pose-helm
+description: A Helm chart for RealSense Pose application - pose estimation and analysis system
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - realsense
+  - pose
+  - estimation
+  - fastapi
+maintainers:
+  - name: 911218sky
+home: https://github.com/911218sky/realsense_pose
+sources:
+  - https://github.com/911218sky/realsense_pose

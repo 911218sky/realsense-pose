@@ -1,0 +1,920 @@
+from typing import Any, Optional, Union
+import numpy as np
+
+from fastapi import APIRouter, Body, HTTPException
+
+from api.utils.cache import redis_cache
+from api.utils.array_codec import pack_1d_f32_zlib_b64, pack_1d_u16_le_zlib_b64
+from api.v1.rehab_analyzer.models import (
+    MultiFFTFromSeriesRequest,
+    MultiFFTFromSeriesResponse,
+    MinutelyCadenceStepLengthBarsRequest,
+    MinutelyCadenceStepLengthBarsResponse,
+    PerLapOffsetRequest,
+    PerLapOffsetResponse,
+    SpatialSpectrumRequest,
+    SpatialSpectrumResponse,
+    StageDurationsRequest,
+    StageDurationsResponse,
+    YHeightDiffRequest,
+    YHeightDiffResponse,
+    SpeedHeatmapRequest,
+    SpeedHeatmapResponse,
+    TrajectoryPayloadRequest,
+    TrajectoryPayloadResponse,
+    SwingInfoHeatmapRequest,
+    SwingInfoHeatmapResponse,
+)
+from api.v1.rehab_analyzer.utils import resolve_session_npy_path, select_peak_indices
+from config import load_config
+from logger import setup_logger
+from rehab_analyzer.rehab_analyzer import RehabilitationSessionAnalyzer
+from rehab_analyzer.entities import DetectLapsResult, OffsetFFTResult
+
+default_config = load_config(mode="analyzer")
+
+router = APIRouter(
+    prefix="/rehab_analyzer",
+    tags=["rehab_analyzer"]
+)
+
+logger = setup_logger("api.v1.rehab_analyzer")
+
+@router.post("/stage_durations", response_model=StageDurationsResponse)
+@redis_cache(expire=30)
+async def stage_durations(
+    session_name: str,
+    config: Optional[StageDurationsRequest] = Body(None),
+) -> StageDurationsResponse:
+    config = config or StageDurationsRequest()
+
+    npy_path = await resolve_session_npy_path(session_name) if session_name else None
+
+    try:
+        # 開始分析
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        det: DetectLapsResult = analyzer.detect_laps_auto(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"stage durations analysis failed: {e}")
+
+    labels = [
+        "1 Stand up",
+        "2 Walk to cone",
+        "3 Turn at cone",
+        "4 Walk back",
+        "5 Align to sit",
+        "6 Sit down",
+    ]
+    keys = [
+        "dur_stand",
+        "dur_to_cone",
+        "dur_cone_turn",
+        "dur_return",
+        "dur_turn_to_sit",
+        "dur_sit",
+    ]
+    meters_idx = {
+        2: "dist_outbound_m",          # 2 Walk to cone
+        3: "dist_cone_turn_path_m",    # 3 Turn at cone
+        4: "dist_return_m",            # 4 Walk back
+        5: "dist_turn_to_sit_m",       # 5 Align to sit
+    }
+
+    laps_payload = []
+    for idx, lap in enumerate(det.laps, start=1):
+        stages = []
+        for stage_idx, (label, key) in enumerate(zip(labels, keys), start=1):
+            entry = {
+                "label": label,
+                "duration_s": float(getattr(lap, key, 0.0)),
+            }
+            if meters_idx.get(stage_idx):
+                entry["distance_m"] = float(getattr(lap, meters_idx[stage_idx], 0.0))
+            stages.append(entry)
+
+        laps_payload.append(
+            {
+                "lap_index": idx,
+                "ts_start": float(lap.ts_start),
+                "ts_end": float(lap.ts_end),
+                "total_duration_s": float(lap.dur_total), 
+                "total_distance_m": float(lap.dist_lap_path_m),
+                "stage_durations": stages,
+            }
+        )
+
+    result = {"laps": laps_payload}
+
+    return result
+
+@router.post(
+    "/per_lap_offset",
+    response_model=PerLapOffsetResponse,
+    response_model_exclude_none=True,
+)
+@redis_cache(expire=30)
+async def per_lap_offset(
+    session_name: str,
+    config: Optional[PerLapOffsetRequest] = Body(None),
+) -> PerLapOffsetResponse:
+    """
+    與 visualizer.save_per_lap_offset 使用相同公式計算每圈 lateral offset / FFT / heading。
+    回傳 JSON 給前端畫三個子圖用。
+    """
+    
+    config = config or PerLapOffsetRequest()
+
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        # 建立 analyzer，做圈數偵測（與 visualizer.save_per_lap_offset 相同）
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        det: DetectLapsResult = analyzer.detect_laps_auto(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+        )
+        laps = det.laps
+        if not laps:
+            raise ValueError("no laps detected")
+
+        # 取得左右髖點、中心點 C2（同 visualizer）
+        fps = float(analyzer._estimate_fps())
+        smooth_window = max(1, int(round(config.smooth_window_s * fps)))
+        L2, R2, _ = analyzer._compute_hip_points(
+            projection=config.projection,
+            smooth_window=smooth_window,
+        )
+        C2 = (L2 + R2) / 2.0
+
+        # lateral offset 全程序列（raw + smooth）
+        chair_pos = np.array(det.chair_pos, dtype=float)
+        cone_pos = np.array(det.cone_pos, dtype=float)
+        lat_raw_all, lat_smooth_all = analyzer._lateral_offset_series(
+            C2=C2,
+            chair_pos=np.array(chair_pos),
+            cone_pos=np.array(cone_pos),
+            k_smooth=config.k_smooth,
+        )
+
+        # pelvis heading（解包後角度），整段 theta_all
+        theta_all = analyzer.compute_pelvis_heading_unwrapped(L2=L2, R2=R2)
+        t_all = analyzer.t.astype(float)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"per_lap_offset analysis failed: {e}",
+        )
+
+
+    # 處理每一圈
+    laps_payload = []
+
+    for lap_idx, lap in enumerate(laps, start=1):
+        start_idx = int(lap.idx_start)
+        end_idx = int(lap.idx_end)
+
+        def rel(i: int) -> int:
+            return int(i - start_idx)
+
+        # 這一圈的 time / lat / theta（相對圈起點）
+        t_rel = t_all[start_idx : end_idx + 1]
+        lat_rel = lat_smooth_all[start_idx : end_idx + 1]
+        lat_raw_rel = lat_raw_all[start_idx : end_idx + 1]
+        theta_rel = theta_all[start_idx : end_idx + 1] - theta_all[start_idx]
+
+        n_rel = len(t_rel)
+
+        # 轉彎區段 index（相對於圈起點）
+        tc_start_rel = rel(lap.idx_turn_cone_start)
+        tc_end_rel = rel(lap.idx_turn_cone_end)
+        th_start_rel = rel(lap.idx_turn_chair_start)
+        th_end_rel = rel(lap.idx_turn_chair_end)
+
+        # 走路區段：離開椅子 -> 再次進入椅區
+        walk_start_rel = rel(lap.idx_leave_chair)
+        walk_end_rel = rel(lap.idx_reenter_chair)
+
+        # 夾在合法範圍內，確保 index 不會超出
+        walk_start_rel = max(0, min(walk_start_rel, n_rel - 1))
+        walk_end_rel = max(0, min(walk_end_rel, n_rel - 1))
+        if walk_end_rel < walk_start_rel:
+            walk_start_rel, walk_end_rel = walk_end_rel, walk_start_rel
+
+        # 只用走路區段做 FFT（走路區段定義同 visualizer）
+        lat_fft = lat_rel[walk_start_rel : walk_end_rel + 1]
+        t_fft = t_rel[walk_start_rel : walk_end_rel + 1]
+
+        fft_res = analyzer.compute_lateral_offset_fft(
+            lat=lat_fft,
+            t=t_fft,
+            band=config.fft_band,
+        )
+
+        # 把 PSD 轉成 dB，跟 visualizer 裡邏輯一致
+        f = np.asarray(fft_res.f, dtype=float)
+        Pxx = np.asarray(fft_res.Pxx, dtype=float)
+        if f.size:
+            eps = float(np.finfo(float).tiny)
+            Pxx_clipped = np.clip(Pxx, eps, None)
+            Pxx_db = 10.0 * np.log10(Pxx_clipped)
+        else:
+            Pxx_db = np.array([], dtype=float)
+
+        peak_freq = float(getattr(fft_res, "f_peak", float("nan")))
+        peak_power = float(getattr(fft_res, "p_peak", float("nan")))
+        peak_db = (
+            float(10.0 * np.log10(max(peak_power, float(np.finfo(float).tiny))))
+            if np.isfinite(peak_power) and peak_power > 0
+            else float("nan")
+        )
+
+        laps_payload.append(
+            {
+                "lap_index": lap_idx,
+                # 時間與訊號（compact: float32+zlib+b64）
+                "time_s_f32_zlib_b64": pack_1d_f32_zlib_b64(t_rel),
+                "lat_raw_f32_zlib_b64": pack_1d_f32_zlib_b64(lat_raw_rel),
+                "lat_smooth_f32_zlib_b64": pack_1d_f32_zlib_b64(lat_rel),
+                "theta_deg_f32_zlib_b64": pack_1d_f32_zlib_b64(theta_rel),
+                # 區段 index（相對於本圈起點）
+                "turn_regions": {
+                    "cone": {
+                        "start_idx": int(tc_start_rel),
+                        "end_idx": int(tc_end_rel),
+                    },
+                    "chair": {
+                        "start_idx": int(th_start_rel),
+                        "end_idx": int(th_end_rel),
+                    },
+                },
+                "walk_region": {
+                    "start_idx": int(walk_start_rel),
+                    "end_idx": int(walk_end_rel),
+                },
+                # FFT / PSD 給 UI 畫頻譜
+                "fft": {
+                    "band": list(config.fft_band),
+                    "freq_hz_f32_zlib_b64": pack_1d_f32_zlib_b64(f),
+                    "psd_db_f32_zlib_b64": pack_1d_f32_zlib_b64(Pxx_db),
+                    "peak_freq_hz": peak_freq,
+                    "peak_power": peak_power,
+                    "peak_db": peak_db,
+                },
+            }
+        )
+
+    return {"laps": laps_payload}
+
+@router.post(
+    "/minutely_cadence_step_length_bars",
+    response_model=MinutelyCadenceStepLengthBarsResponse,
+)
+@redis_cache(expire=30)
+async def minutely_cadence_step_length_bars(
+    session_name: str,
+    config: Optional[MinutelyCadenceStepLengthBarsRequest] = Body(None),
+) -> MinutelyCadenceStepLengthBarsResponse:
+    
+    config = config or MinutelyCadenceStepLengthBarsRequest()
+
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        summary = analyzer.compute_gait_summary(
+            smooth_window_s=config.smooth_window_s,
+            projection=config.projection,
+        )
+        per_interval = summary.per_interval or []
+        if not per_interval:
+            raise ValueError("沒有每分鐘區間可視覺化（per_interval 為空）。")
+        if config.max_minutes is not None:
+            max_minutes = max(1, int(config.max_minutes))
+            per_interval = per_interval[:max_minutes]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"minutely_cadence_step_length_bars analysis failed: {e}",
+        )
+
+    minutes = list(range(1, len(per_interval) + 1))
+    cadence_spm = [float(interval.spm) for interval in per_interval]
+    step_length_m = [float(interval.mean_step_len_m) for interval in per_interval]
+    step_counts = [
+        int(interval.left_step_count + interval.right_step_count)
+        for interval in per_interval
+    ]
+
+    return {
+        "minutes": minutes,
+        "cadence_spm": cadence_spm,
+        "step_length_m": step_length_m,
+        "step_counts": step_counts,
+    }
+
+@router.post("/y_height_diff", response_model=YHeightDiffResponse)
+@redis_cache(expire=30)
+async def y_height_diff(
+    session_name: str,
+    config: Optional[YHeightDiffRequest] = Body(None),
+) -> YHeightDiffResponse:
+    """
+    回傳左右關節的 Y 高度與差值序列，給前端直接畫三條線用。
+    """
+    
+    config = config or YHeightDiffRequest()
+
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        fps = float(analyzer._estimate_fps())
+        smooth_window = max(1, int(round(config.smooth_window_s * fps)))
+        t, series = analyzer.compute_y_heigh(
+            joints=[config.left_joint, config.right_joint],
+            smooth_window=smooth_window,
+            shift_to_zero=config.shift_to_zero,
+        )
+
+        if len(series) != 2:
+            raise ValueError("需要剛好兩條關節高度序列（左、右）。")
+
+        left, right = series
+        diff = left - right
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"y_height_diff analysis failed: {e}"
+        )
+    
+        
+    return {
+        "time_s_f32_zlib_b64": pack_1d_f32_zlib_b64(t),
+        "left_f32_zlib_b64": pack_1d_f32_zlib_b64(left),
+        "right_f32_zlib_b64": pack_1d_f32_zlib_b64(right),
+        "diff_f32_zlib_b64": pack_1d_f32_zlib_b64(diff),
+        "left_joint": config.left_joint,
+        "right_joint": config.right_joint,
+    }
+
+
+@router.post("/speed_heatmap", response_model=SpeedHeatmapResponse)
+@redis_cache(expire=30)
+async def speed_heatmap(
+    session_name: str,
+    config: Optional[SpeedHeatmapRequest] = Body(None),
+) -> SpeedHeatmapResponse:
+    """
+    每圈速度時空熱圖
+    """
+    
+    config = config or SpeedHeatmapRequest()
+
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        fps = float(analyzer._estimate_fps())
+        smooth_window = max(1, int(round(config.smooth_window_s * fps)))
+        L2, R2, _ = analyzer._compute_hip_points(
+            projection=config.projection,
+            smooth_window=smooth_window,
+        )
+        C2 = (L2 + R2) / 2.0
+        _, speed, _ = analyzer._speed_series(C2)
+
+        det = analyzer.detect_laps_auto(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+            flat_frac=config.flat_frac,
+            min_v_abs=config.min_v_abs,
+        )
+        laps = det.laps
+        if not laps:
+            raise ValueError("沒有圈數可視覺化。")
+
+        width = int(max(50, config.width))
+        num_laps = len(laps)
+        mat = np.full((num_laps, width), np.nan, dtype=float)
+        marks: list[dict[str, Any]] = []
+
+        def _safe_frac(idx: int, start_idx: int, denom: int) -> float:
+            """把 session index 轉成相對圈長的 0~1 位置。"""
+            if denom <= 0:
+                return 0.0
+            f = (float(idx) - float(start_idx)) / float(denom)
+            # 避免極端 index 造成前端畫圖超出範圍
+            return float(np.clip(f, 0.0, 1.0))
+
+        def resample_1d(arr: np.ndarray, i0: int, i1: int, m: int) -> np.ndarray:
+            """以索引為自變數，將 arr[i0:i1] 線性插值重採樣成 m 個點（含端點）。"""
+            i0 = max(0, int(i0))
+            i1 = max(0, int(i1))
+            if i1 <= i0:
+                raise ValueError("i1 必須大於 i0。")
+            idx_src = np.linspace(i0, i1, num=(i1 - i0 + 1))
+            idx_dst = np.linspace(i0, i1, num=m)
+            return np.interp(idx_dst, idx_src, arr[i0 : i1 + 1])
+
+        for row, lap in enumerate(laps):
+            start_idx = int(lap.idx_onset_end)
+            end_idx = int(lap.idx_chair_sit_end)
+            if end_idx <= start_idx:
+                continue
+
+            mat[row] = resample_1d(speed, start_idx, end_idx, width)
+            denom = max(1, end_idx - start_idx)
+            cone_start_idx = int(lap.idx_turn_cone_start)
+            cone_end_idx = int(lap.idx_turn_cone_end)
+            chair_start_idx = int(lap.idx_turn_chair_start)
+            chair_end_idx = int(lap.idx_turn_chair_end)
+
+            a = _safe_frac(cone_start_idx, start_idx, denom)
+            b = _safe_frac(cone_end_idx, start_idx, denom)
+            c = _safe_frac(chair_start_idx, start_idx, denom)
+            d = _safe_frac(chair_end_idx, start_idx, denom)
+            marks.append(
+                {
+                    "lap_index": row + 1,
+                    "cone_start_frac": float(a),
+                    "cone_end_frac": float(b),
+                    "chair_start_frac": float(c),
+                    "chair_end_frac": float(d),
+                }
+            )
+
+        finite_vals = mat[np.isfinite(mat)]
+        auto_vmin = float(np.min(finite_vals)) if finite_vals.size else None
+        auto_vmax = float(np.max(finite_vals)) if finite_vals.size else None
+        vmin = config.vmin if config.vmin is not None else auto_vmin
+        vmax = config.vmax if config.vmax is not None else auto_vmax
+
+        heatmap = [
+            [float(x) if np.isfinite(x) else None for x in row] for row in mat
+        ]
+
+        return {
+            "width": width,
+            "heatmap": heatmap,
+            "marks": marks,
+            "vmin": vmin,
+            "vmax": vmax,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"speed_heatmap analysis failed: {e}"
+        )
+
+
+@router.post("/swing_info_heatmap", response_model=SwingInfoHeatmapResponse)
+@redis_cache(expire=30)
+async def swing_info_heatmap(
+    session_name: str,
+    config: Optional[SwingInfoHeatmapRequest] = Body(None),
+) -> SwingInfoHeatmapResponse:
+    """
+    對應 visualizer.save_swing_info_heatmap 的資料版：
+    回傳每分鐘區間的 Left/Right swing% 與 swing 秒數矩陣，供前端自行渲染熱力圖。
+    """
+    config = config or SwingInfoHeatmapRequest()
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        summary = analyzer.compute_gait_summary(
+            smooth_window_s=config.smooth_window_s,
+            projection=config.projection,
+            flat_frac=config.flat_frac,
+            min_v_abs=config.min_v_abs,
+        )
+        per_interval = summary.per_interval or []
+        if not per_interval:
+            raise ValueError("沒有每分鐘區間可視覺化（per_interval 為空）。")
+        if config.max_minutes is not None:
+            per_interval = per_interval[: max(1, int(config.max_minutes))]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"swing_info_heatmap analysis failed: {e}",
+        )
+
+    L = len(per_interval)
+    H_pct = np.full((2, L), np.nan, dtype=float)
+    H_sec = np.full((2, L), np.nan, dtype=float)
+
+    for j, interval in enumerate(per_interval):
+        H_pct[0, j] = float(interval.l_swing_pct_mean)
+        H_pct[1, j] = float(interval.r_swing_pct_mean)
+        H_sec[0, j] = float(interval.l_swing_s_mean)
+        H_sec[1, j] = float(interval.r_swing_s_mean)
+
+    return {
+        "minutes": list(range(1, L + 1)),
+        "swing_pct": H_pct,
+        "swing_s": H_sec,
+    }
+
+
+@router.post("/spatial_spectrum", response_model=SpatialSpectrumResponse)
+@redis_cache(expire=30)
+async def spatial_spectrum(
+    session_name: str,
+    config: Optional[SpatialSpectrumRequest] = Body(None),
+) -> SpatialSpectrumResponse:
+    """
+    回傳 X(Z) / Y(Z) 的空間頻譜（dB，相對各曲線最大值）與峰值位置。
+    """
+    
+    config = config or SpatialSpectrumRequest()
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        payload: list[dict[str, Any]] = []
+
+        for p in config.pair:
+            f, spec = analyzer.compute_spatial_spectrum_zind(
+                pair=p,
+                k_smooth=config.k_smooth
+            )
+            f = np.asarray(f, dtype=float)
+            spec = np.asarray(spec, dtype=float)
+
+            eps = np.finfo(float).tiny
+            max_spec = float(spec.max()) if spec.size else 0.0
+            if max_spec <= 0.0:
+                spec_db = np.full_like(spec, -300.0)
+            else:
+                spec_db = 10.0 * np.log10(np.maximum(spec / max_spec, eps))
+
+            # 選擇峰值索引
+            peak_idx = select_peak_indices(
+                f,
+                spec_db,
+                max_peaks=config.top_k,
+                min_peak_distance_ratio=config.min_peak_distance_ratio,
+                min_db=config.min_db,
+                min_freq=config.min_freq,
+            )
+
+            peaks: list[dict[str, float]] = [
+                {"freq": float(f[i]), "db": float(spec_db[i])} for i in peak_idx
+            ]
+
+            payload.append(
+                {
+                    "pair": p,
+                    "freq_f32_zlib_b64": pack_1d_f32_zlib_b64(f),
+                    "psd_db_f32_zlib_b64": pack_1d_f32_zlib_b64(spec_db),
+                    "peaks": peaks,
+                }
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"spatial_spectrum analysis failed: {e}"
+        )
+
+    return {"spectrums": payload}
+
+
+@router.post(
+    "/multi_fft_from_series",
+    response_model=MultiFFTFromSeriesResponse,
+)
+@redis_cache(expire=30)
+async def multi_fft_from_series(
+    session_name: str,
+    config: Optional[MultiFFTFromSeriesRequest] = Body(None),
+) -> MultiFFTFromSeriesResponse:
+    """
+    回傳多條關節序列的 FFT/PSD（dB，相對全域最大），含峰值列表，方便前端畫頻譜。
+    """
+    
+    config = config or MultiFFTFromSeriesRequest()
+
+    if not config.joints:
+        raise HTTPException(status_code=400, detail="joints 不能為空")
+
+    # 解析 component -> 對應軸索引
+    component = config.component.lower()
+    match component:
+        case "x":
+            component_idx = 0
+        case "y":
+            component_idx = 1
+        case "z":
+            component_idx = 2
+        case _:
+            raise HTTPException(
+                status_code=400, detail="component 必須是 x / y / z"
+            )
+
+    npy_path = await resolve_session_npy_path(session_name)
+
+    # 從關節序列中計算平均值的輔助函數（支援單一或群組關節）
+    def _series_from_joint_spec(
+        analyzer: RehabilitationSessionAnalyzer,
+        spec: Union[int, str, list, tuple, np.ndarray],
+    ) -> np.ndarray:
+        # 若為群組指定，先轉索引後取平均
+        if isinstance(spec, (list, tuple, np.ndarray)):
+            # 群組不可為空
+            if not spec:
+                raise ValueError("joint group 不能是空的。")
+            # 將每個關節標識轉成索引
+            idxs = [analyzer.resolve_joint(j) for j in spec]
+            # 取出指定軸的資料並在關節維度做平均
+            arr_group = analyzer.arr[:, idxs, component_idx]
+            return np.mean(arr_group, axis=1)
+        # 單一關節，轉索引後取該軸序列
+        idx = analyzer.resolve_joint(spec)
+        return analyzer.arr[:, idx, component_idx]
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        results = []
+        max_power = 0.0
+
+        # 先跑 FFT，找出全域最大功率供 dB 正規化
+        fft_outputs: list[OffsetFFTResult] = []
+        for joint_spec in config.joints:
+            series = _series_from_joint_spec(analyzer, joint_spec)
+            res = analyzer.compute_lateral_offset_fft(
+                lat=np.asarray(series, dtype=float),
+                t=analyzer.t,
+            )
+            fft_outputs.append(res)
+            if res.Pxx.size:
+                pmax = float(np.nanmax(res.Pxx))
+                if np.isfinite(pmax):
+                    max_power = max(max_power, pmax)
+
+        eps = np.finfo(float).tiny
+        if not np.isfinite(max_power) or max_power <= 0.0:
+            max_power = 1.0
+
+        for res in fft_outputs:
+            f = np.asarray(res.f, dtype=float)
+            Pxx = np.asarray(res.Pxx, dtype=float)
+            
+            # 避免全部都是 0 或 NaN，若空資料則直接回報空頻譜
+            if f.size == 0 or Pxx.size == 0:
+                results.append(
+                    {
+                        "joint_spec": config.joints[len(results)],
+                        "freq_hz_f32_zlib_b64": pack_1d_f32_zlib_b64(f),
+                        "psd_db_f32_zlib_b64": pack_1d_f32_zlib_b64(np.asarray([], dtype=np.float32)),
+                        "peaks": [],
+                    }
+                )
+                continue
+
+            # 把 PSD 轉成 dB（相對全域最大值）
+            psd_db = 10.0 * np.log10(np.maximum(Pxx / max_power, eps))
+            peak_idx = select_peak_indices(
+                f,
+                psd_db,
+                max_peaks=config.top_k,
+                min_peak_distance_ratio=config.min_peak_distance_ratio,
+                min_db=config.min_db,
+                min_freq=config.min_freq,
+                ensure_global_peak=True,
+            )
+            
+            peaks = [
+                {"freq_hz": float(f[i]), "db": float(psd_db[i])} for i in peak_idx
+            ]
+
+            results.append(
+                {
+                    "joint_spec": config.joints[len(results)],
+                    "freq_hz_f32_zlib_b64": pack_1d_f32_zlib_b64(f),
+                    "psd_db_f32_zlib_b64": pack_1d_f32_zlib_b64(psd_db),
+                    # 頻譜峰值列表
+                    "peaks": peaks,
+                }
+            )
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"multi_fft_from_series analysis failed: {e}"
+        )   
+
+    return {
+        "component": component,
+        "series": results,
+    }
+
+
+@router.post("/trajectory_payload", response_model=TrajectoryPayloadResponse)
+@redis_cache(expire=30)
+async def trajectory_payload(
+    session_name: str,
+    config: Optional[TrajectoryPayloadRequest] = Body(None),
+) -> TrajectoryPayloadResponse:
+    """
+    回傳 top-down 軌跡動畫資料包（給前端自行渲染），取代 `save_trajectory_video` 的 mp4 輸出。
+
+    包含：
+    - 座標：量化為 uint16（用 bounds 做 0..65535 mapping），zlib 壓縮後 base64
+    - 場景：椅子/錐桶（也用同一套 bounds 量化為 uint16）與半徑
+    - 圈段：每圈在 payload frames 中的 [start_k, end_k] 與轉身點 marker 的 k
+    - meta：fps_out + bounds + encoding + n_frames
+
+    不回傳（因為前端可推導/重建）：
+    - frame_idx / time_s / speed_mps / lap_index / marker_xy 等
+    """
+    config = config or TrajectoryPayloadRequest()
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+
+        fps_in = float(analyzer._estimate_fps())
+        smooth_window = max(1, int(round(config.smooth_window_s * fps_in)))
+
+        L2, R2, valid = analyzer._compute_hip_points(
+            projection=config.projection,
+            smooth_window=smooth_window,
+            left_joint=config.left_joint,
+            right_joint=config.right_joint,
+        )
+        C2 = (L2 + R2) / 2.0
+        num_frames = int(C2.shape[0])
+        if not np.any(valid):
+            raise ValueError("沒有有效的關節座標。")
+
+        det: DetectLapsResult = analyzer.detect_laps_auto(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+            flat_frac=config.flat_frac,
+            min_v_abs=config.min_v_abs,
+        )
+
+        chair_pos = np.array(det.chair_pos, dtype=float)
+        cone_pos = np.array(det.cone_pos, dtype=float)
+        rC = float(det.r_chair_enter)
+        rK = float(det.r_cone_enter)
+
+        # bounds：以所有有效點與椅、錐位置決定
+        all_points = np.vstack(
+            [L2[valid], R2[valid], chair_pos[None, :], cone_pos[None, :]]
+        )
+        xmin, ymin = np.min(all_points, axis=0)
+        xmax, ymax = np.max(all_points, axis=0)
+        span = max(float(xmax - xmin), float(ymax - ymin), 1e-6)
+        pad_abs = float(config.pad_scale) * span
+        xmin -= pad_abs
+        xmax += pad_abs
+        ymin -= pad_abs
+        ymax += pad_abs
+
+        # 旋轉 180°：椅/錐上下互換
+        if config.rotate_180:
+            # 旋轉中心
+            cx = 0.5 * (xmin + xmax)
+            cy = 0.5 * (ymin + ymax)
+
+            # 旋轉座標
+            def _rotate_coords(arr: np.ndarray) -> np.ndarray:
+                rotated = np.array(arr, dtype=float, copy=True)
+                rotated[..., 0] = 2 * cx - rotated[..., 0]
+                rotated[..., 1] = 2 * cy - rotated[..., 1]
+                return rotated
+
+            L2 = _rotate_coords(L2)
+            R2 = _rotate_coords(R2)
+            chair_pos = _rotate_coords(chair_pos)
+            cone_pos = _rotate_coords(cone_pos)
+
+        # 下採樣：和 visualizer 保持一致
+        stride = max(1, int(round((fps_in * float(config.speed)) / float(config.fps_out))))
+        idxs_full = np.arange(0, num_frames, stride, dtype=int)
+        idxs_full = idxs_full[valid[idxs_full]]
+        if idxs_full.size < 2:
+            raise ValueError("有效影格太少，無法產生 trajectory payload。")
+        if int(config.frame_jump) > 1:
+            idxs_full = idxs_full[:: int(config.frame_jump)]
+
+        L2_sub = L2[idxs_full]
+        R2_sub = R2[idxs_full]
+
+        n_frames = int(idxs_full.size)
+        idxs_full_i64 = idxs_full.astype(np.int64, copy=False)
+
+        # 量化到 uint16（用 bounds 做線性 mapping：0..65535）
+        dx = float(xmax - xmin) if float(xmax - xmin) > 1e-9 else 1e-9
+        dy = float(ymax - ymin) if float(ymax - ymin) > 1e-9 else 1e-9
+
+        # 量化到 uint16
+        def _quantize_u16(arr2: np.ndarray) -> np.ndarray:
+            a = np.asarray(arr2, dtype=float)
+            qx = np.clip((a[:, 0] - float(xmin)) / dx, 0.0, 1.0)
+            qy = np.clip((a[:, 1] - float(ymin)) / dy, 0.0, 1.0)
+            ux = np.rint(qx * 65535.0).astype(np.uint16)
+            uy = np.rint(qy * 65535.0).astype(np.uint16)
+            return np.stack([ux, uy], axis=1)
+
+        # 找到最接近的影格索引
+        def _nearest_k(frame_idx: int) -> Optional[int]:
+            if n_frames <= 0:
+                return None
+            j = int(np.searchsorted(idxs_full_i64, int(frame_idx), side="left"))
+            if j <= 0:
+                return 0
+            if j >= n_frames:
+                return n_frames - 1
+            left = int(idxs_full_i64[j - 1])
+            right = int(idxs_full_i64[j])
+            return j - 1 if abs(int(frame_idx) - left) <= abs(right - int(frame_idx)) else j
+
+        Lq = _quantize_u16(L2_sub)
+        Rq = _quantize_u16(R2_sub)
+        # 打包成 [xL, yL, xR, yR] * n_frames
+        packed_u16 = np.empty((n_frames, 4), dtype=np.uint16)
+        packed_u16[:, 0:2] = Lq
+        packed_u16[:, 2:4] = Rq
+
+        # 壓縮
+        b64 = pack_1d_u16_le_zlib_b64(packed_u16)
+
+        # 椅/錐座標量化 [x_u16, y_u16]
+        chair_u16 = _quantize_u16(np.asarray(chair_pos, dtype=float)[None, :])[0]
+        cone_u16 = _quantize_u16(np.asarray(cone_pos, dtype=float)[None, :])[0]
+
+        # 圈段/轉身 marker 索引 k
+        laps_payload = []
+        for lap_i, lap in enumerate(det.laps, start=1):
+            start_f = int(lap.idx_start)
+            end_f = int(lap.idx_end)
+            # 在下採樣後的 idxs_full_i64 裡，找落在 [start_f, end_f] 範圍內的第一/最後一筆。
+            payload_start_k: Optional[int] = None
+            payload_end_k: Optional[int] = None
+            
+            if n_frames > 0:
+                # 在 idxs_full_i64 裡，找落在 [start_f, end_f] 範圍內的第一/最後一筆。
+                k0 = int(np.searchsorted(idxs_full_i64, start_f, side="left"))
+                k1 = int(np.searchsorted(idxs_full_i64, end_f, side="right")) - 1
+                if (0 <= k0 < n_frames) and (0 <= k1 < n_frames) and (k0 <= k1):
+                    payload_start_k = k0
+                    payload_end_k = k1
+
+            laps_payload.append(
+                {
+                    "lap_index": int(lap_i),
+                    "payload_start_k": payload_start_k,
+                    "payload_end_k": payload_end_k,
+                    "markers": {
+                        "cone_start_k": _nearest_k(int(lap.idx_turn_cone_start)),
+                        "cone_end_k": _nearest_k(int(lap.idx_turn_cone_end)),
+                        "chair_start_k": _nearest_k(int(lap.idx_turn_chair_start)),
+                        "chair_end_k": _nearest_k(int(lap.idx_turn_chair_end)),
+                    },
+                }
+            )
+
+        return {
+            "meta": {
+                "projection": str(config.projection),
+                "fps_out": int(config.fps_out),
+                "rotate_180": bool(config.rotate_180),
+                "bounds": {
+                    "xmin": float(xmin),
+                    "xmax": float(xmax),
+                    "ymin": float(ymin),
+                    "ymax": float(ymax),
+                },
+                "encoding": "u16_xy_lr_zlib_b64",
+                "endian": "little",
+                "n_frames": int(n_frames),
+            },
+            "scene": {
+                "chair_xy_u16": [int(chair_u16[0]), int(chair_u16[1])],
+                "cone_xy_u16": [int(cone_u16[0]), int(cone_u16[1])],
+                "r_chair": float(rC),
+                "r_cone": float(rK),
+            },
+            "frames": {"xy_lr_u16_zlib_b64": b64},
+            "laps": laps_payload,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"trajectory payload analysis failed: {e}"
+        )

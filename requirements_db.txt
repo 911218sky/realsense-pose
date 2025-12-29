@@ -1,0 +1,11 @@
+# FastAPI: 提供 HTTP API 服務（[all] 含常用額外依賴，如 uvicorn、pydantic 等）
+fastapi[all]~=0.124.2
+# Redis client: 連線到 Redis（快取/佇列/簡易共享狀態）
+redis~=7.1.0
+# Beanie ODM: MongoDB 的 Pydantic ODM（定義模型/CRUD 操作）
+beanie~=2.0.1
+# Motor: MongoDB 非同步 driver（Beanie 底層使用）
+motor~=3.7.1
+
+# Brotli compression (used to precompress Flutter Web assets into .br files)
+brotli>=1.1.0,<2

@@ -1,0 +1,81 @@
+# =============================================================================
+# RealSense Pose - Development Environment Values
+# =============================================================================
+# Usage: helm install realsense-pose ./helm/realsense-pose -f ./helm/realsense-pose/values-dev.yaml
+
+api:
+  image:
+    tag: "latest"
+    pullPolicy: Always
+  
+  replicaCount: 1
+  isProd: "0"
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  
+  persistence:
+    data:
+      enabled: true
+      size: 5Gi
+    outputs:
+      enabled: true
+      size: 5Gi
+
+nginx:
+  enabled: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+mongodb:
+  enabled: true
+  auth:
+    rootPassword: "dev-password-change-me"
+    database: "nycu_rehab"
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+redis:
+  enabled: true
+  maxmemory: "128mb"
+  persistence:
+    enabled: true
+    size: 512Mi
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+fail2ban:
+  enabled: false
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+service:
+  type: NodePort
