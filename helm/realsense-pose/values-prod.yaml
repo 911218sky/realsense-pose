@@ -11,7 +11,7 @@
 api:
   image:
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   
   replicaCount: 2
   isProd: "1"
@@ -26,9 +26,6 @@ api:
   
   persistence:
     data:
-      enabled: true
-      size: 50Gi
-    outputs:
       enabled: true
       size: 50Gi
 

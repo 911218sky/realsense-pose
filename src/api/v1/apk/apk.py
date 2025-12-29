@@ -61,7 +61,7 @@ async def _fetch_github_release_assets() -> list[dict[str, Any]]:
             response = await client.get(
                 GITHUB_API_URL,
                 headers={"Accept": "application/vnd.github+json"},
-                timeout=10.0,
+                timeout=30.0,
             )
             response.raise_for_status()
             data = response.json()

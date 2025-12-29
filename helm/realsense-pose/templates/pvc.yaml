@@ -15,21 +15,3 @@ spec:
     requests:
       storage: {{ .Values.api.persistence.data.size }}
 {{- end }}
----
-{{- if .Values.api.persistence.outputs.enabled }}
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ include "realsense-pose.fullname" . }}-outputs
-  labels:
-    {{- include "realsense-pose.labels" . | nindent 4 }}
-spec:
-  accessModes:
-    - {{ .Values.api.persistence.outputs.accessMode }}
-  {{- if .Values.api.persistence.outputs.storageClass }}
-  storageClassName: {{ .Values.api.persistence.outputs.storageClass | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.api.persistence.outputs.size }}
-{{- end }}

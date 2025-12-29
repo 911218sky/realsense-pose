@@ -10,7 +10,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
     volumes:
-      - ${HOST_MONGO_DIR:-./data/mongo}:/data/db
+      - mongo_data:/data/db
+      - ${HOST_MONGO_BACKUP_DIR:-./backups/mongo}:/backups
     ports:
       # Keep host port 27015 to match existing defaults in code/scripts
       - "${MONGO_PORT:-27015}:27017"
@@ -27,10 +28,17 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - ${HOST_REDIS_DIR:-./data/redis}:/data
+      - redis_data:/data
+      - ${HOST_REDIS_BACKUP_DIR:-./backups/redis}:/backups
     command: ["redis-server", "--appendonly", "yes", "--dir", "/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 30
+
+volumes:
+  mongo_data:
+    name: realsense-pose-mongo-data
+  redis_data:
+    name: realsense-pose-redis-data

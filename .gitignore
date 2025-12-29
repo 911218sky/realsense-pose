@@ -47,6 +47,9 @@ outputs/
 *.pickle
 *.bag
 
+# Backups
+backups/
+
 # OS
 .DS_Store
 Thumbs.db

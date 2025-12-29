@@ -23,9 +23,6 @@ api:
     data:
       enabled: true
       size: 5Gi
-    outputs:
-      enabled: true
-      size: 5Gi
 
 nginx:
   enabled: true

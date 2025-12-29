@@ -17,7 +17,7 @@ api:
   image:
     repository: ghcr.io/911218sky/realsense-pose
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always  # 每次都拉取最新映像檔
   
   replicaCount: 1
   
@@ -51,11 +51,6 @@ api:
   # Persistence for app data
   persistence:
     data:
-      enabled: true
-      size: 10Gi
-      storageClass: ""
-      accessMode: ReadWriteOnce
-    outputs:
       enabled: true
       size: 10Gi
       storageClass: ""

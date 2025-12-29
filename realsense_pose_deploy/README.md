@@ -24,6 +24,18 @@ One-click deployment scripts for Realsense Pose API on Windows.
 | `clean_project.bat` | 🧹 Clean project: remove containers, images, volumes |
 | `prune_docker.bat` | 🗑️ Prune Docker: remove all unused Docker resources |
 
+### Backup Scripts (backup/)
+
+| Script | Description |
+|--------|-------------|
+| `backup/backup_volumes.bat` | 💾 Manual backup of MongoDB and Redis data |
+| `backup/restore_volumes.bat` | 📥 Restore data from backup |
+| `backup/setup_daily_backup.bat` | ⏰ Setup automatic daily backup (requires admin) |
+| `backup/remove_daily_backup.bat` | ❌ Remove automatic daily backup |
+| `backup/migrate_to_volume.bat` | 🔄 Migrate existing data to Docker Volume |
+
+See `backup/README.md` for detailed backup documentation.
+
 ## Workflow
 
 ```
@@ -47,12 +59,22 @@ A `.env` file will be created automatically on first run. You can customize:
 
 ## Data Storage
 
-All data is stored in the script directory:
+MongoDB and Redis data are stored in Docker Volumes for better performance:
 ```
-./data/mongo/   - MongoDB data
-./data/redis/   - Redis data
-./outputs/      - Output results
+Docker Volumes:
+  realsense-pose-mongo-data   - MongoDB data
+  realsense-pose-redis-data   - Redis data
+
+Backups:
+  ./backups/latest/           - Latest backup files
 ```
+
+**Backup & Restore:**
+- Manual backup: `backup\backup_volumes.bat`
+- Restore data: `backup\restore_volumes.bat`
+- Setup daily auto-backup: `backup\setup_daily_backup.bat` (run as admin)
+
+See `backup/README.md` for more details.
 
 ## FAQ
 
