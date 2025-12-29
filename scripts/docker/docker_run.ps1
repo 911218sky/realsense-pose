@@ -34,6 +34,7 @@ New-Item -ItemType Directory -Force -Path 'data' | Out-Null
 New-Item -ItemType Directory -Force -Path 'outputs' | Out-Null
 New-Item -ItemType Directory -Force -Path 'data\mongo' | Out-Null
 New-Item -ItemType Directory -Force -Path 'data\redis' | Out-Null
+New-Item -ItemType Directory -Force -Path 'backups' | Out-Null
 
 Write-Host ''
 if ($DoBuild) {

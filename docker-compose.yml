@@ -199,46 +199,27 @@ services:
     image: alpine:latest
     container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-backup
     restart: unless-stopped
+    stop_grace_period: 1s
     environment:
+      BACKUP_DIR: /backups
+      MONGO_DATA: /data/mongo
+      REDIS_DATA: /data/redis
       BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
       MAX_BACKUPS: ${MAX_BACKUPS:-7}
       TZ: ${TZ:-Asia/Taipei}
     volumes:
-      - ${HOST_MONGO_DIR:-mongo_data}:/data/mongo:ro
-      - ${HOST_REDIS_DIR:-redis_data}:/data/redis:ro
+      - ${HOST_MONGO_DIR:-mongo_data}:/data/mongo
+      - ${HOST_REDIS_DIR:-redis_data}:/data/redis
       - ${HOST_BACKUP_DIR:-./backups}:/backups
+      - ${BACKUP_SCRIPT:-./scripts/backup/backup.sh}:/usr/local/bin/backup.sh:ro
     command: >
       sh -c '
         apk add --no-cache tzdata dcron &&
-        cat > /usr/local/bin/backup.sh << "EOF"
-      #!/bin/sh
-      TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
-      BACKUP_DIR="/backups/$$TIMESTAMP"
-      mkdir -p "$$BACKUP_DIR"
-      
-      echo "[$(date)] Starting backup..."
-      tar czf "$$BACKUP_DIR/mongo.tar.gz" -C /data/mongo . 2>/dev/null || echo "MongoDB backup skipped"
-      tar czf "$$BACKUP_DIR/redis.tar.gz" -C /data/redis . 2>/dev/null || echo "Redis backup skipped"
-      date > "$$BACKUP_DIR/backup_time.txt"
-      
-      # Clean old backups
-      cd /backups
-      ls -t | tail -n +$$((MAX_BACKUPS + 1)) | xargs -r rm -rf
-      
-      echo "[$(date)] Backup completed: $$BACKUP_DIR"
-      EOF
-        chmod +x /usr/local/bin/backup.sh &&
-        echo "[$(date)] Backup service started. Schedule: $$BACKUP_CRON" &&
-        echo "[$(date)] Running initial backup on startup..." &&
-        /usr/local/bin/backup.sh &&
-        echo "$$BACKUP_CRON /usr/local/bin/backup.sh" > /etc/crontabs/root &&
-        crond -f -l 2
+        /usr/local/bin/backup.sh --startup
       '
     networks:
-      - backend
+      - frontend
     logging: *default-logging
-    profiles:
-      - ${BACKUP_ENABLED:-1}
 
   # ---------------------------------------------------------------------------
   # Auto-Update
@@ -260,8 +241,6 @@ services:
       - --label-enable
       - --scope=realsense-pose
     logging: *default-logging
-    profiles:
-      - ${WATCHTOWER_ENABLED:-1}
 
 # -----------------------------------------------------------------------------
 # Networks
