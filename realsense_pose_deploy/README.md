@@ -4,7 +4,7 @@ One-click deployment scripts for Realsense Pose API on Windows.
 
 ## Quick Start
 
-1. Download `realsense-pose_deploy.zip` and extract
+1. Download `realsense-pose-deploy.zip` and extract
 2. Run `install_docker.bat` if Docker Desktop is not installed
 3. Make sure Docker Desktop is running
 4. Double-click `docker_login.bat` to login to registry (first time only)

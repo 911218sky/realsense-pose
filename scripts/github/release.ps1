@@ -9,12 +9,13 @@
     Optional tag message. Defaults to "Release v{Version}".
 
 .PARAMETER Target
-    Which workflow to trigger: 'all', 'docker', 'release'. Defaults to 'all'.
+    Which workflow to trigger: 'all', 'docker', 'helm', 'release'. Defaults to 'all'.
 
 .EXAMPLE
     .\scripts\github\release.ps1                           # Auto-increment, ask which part
     .\scripts\github\release.ps1 -Version 1.0.0
     .\scripts\github\release.ps1 -Version 1.0.0 -Target docker
+    .\scripts\github\release.ps1 -Version 1.0.0 -Target helm
     .\scripts\github\release.ps1 -Version 1.0.0 -Target release
     .\scripts\github\release.ps1 -Version 1.2.3 -Message "Bug fixes" -Target all
 #>
@@ -23,7 +24,7 @@ param(
     [string]$Version,
     [string]$Message,
 
-    [ValidateSet('all', 'docker', 'release')]
+    [ValidateSet('all', 'docker', 'helm', 'release')]
     [string]$Target = 'all'
 )
 
@@ -167,17 +168,19 @@ if ($Target -eq 'all') {
     
     Write-Host ""
     Write-Host "Done! Tag '$tag' pushed to GitHub." -ForegroundColor Green
-    Write-Host "Both Docker build and Release workflows will run." -ForegroundColor Green
+    Write-Host "Docker build, Helm release, and Release workflows will run." -ForegroundColor Green
 }
 else {
     # Manual trigger specific workflow via GitHub CLI
     $workflowFile = switch ($Target) {
         'docker' { 'docker-build.yml' }
+        'helm' { 'helm-release.yml' }
         'release' { 'release.yml' }
     }
     
     $workflowName = switch ($Target) {
         'docker' { 'Docker Build' }
+        'helm' { 'Helm Release' }
         'release' { 'Release' }
     }
     
@@ -193,8 +196,8 @@ else {
     
     Write-Host "Triggering $workflowName workflow on ref: $ref" -ForegroundColor Cyan
     
-    if ($Target -eq 'docker') {
-        # Pass version to docker workflow
+    if ($Target -eq 'docker' -or $Target -eq 'helm') {
+        # Pass version to docker/helm workflow
         gh workflow run $workflowFile --ref $ref -f version=$Version
     } else {
         gh workflow run $workflowFile --ref $ref

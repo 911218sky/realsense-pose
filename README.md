@@ -7,7 +7,7 @@ A pose estimation and analysis system using Intel RealSense cameras with MediaPi
 ### Using Docker (Recommended)
 
 1. Download the latest release from [Releases](../../releases)
-2. Extract `realsense-pose_deploy.zip`
+2. Extract `realsense-pose-deploy.zip`
 3. Copy `env.example` to `.env` and configure as needed
 4. Run:
    ```bash
