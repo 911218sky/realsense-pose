@@ -4,9 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+/build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -21,10 +21,10 @@ wheels/
 *.egg
 
 # Virtual Environment
-venv/
-ENV/
-env/
-.venv/
+/venv/
+/ENV/
+/env/
+/.venv/
 
 # IDE
 .vscode/
@@ -57,8 +57,6 @@ logs/
 
 # Web UI (downloaded from gait_charts releases)
 /web/
-/build/
-/env/
 
 # Cursor
 .cursor/
