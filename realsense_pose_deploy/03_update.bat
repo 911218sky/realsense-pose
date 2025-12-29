@@ -18,7 +18,7 @@ if not exist ".env" (
 REM Get image info from .env
 for /f "tokens=2 delims==" %%a in ('findstr /i "^API_IMAGE=" .env') do set API_IMAGE=%%a
 for /f "tokens=2 delims==" %%a in ('findstr /i "^API_TAG=" .env') do set API_TAG=%%a
-if "!API_IMAGE!"=="" set API_IMAGE=ghcr.io/911218sky/realsense_pose
+if "!API_IMAGE!"=="" set API_IMAGE=ghcr.io/911218sky/realsense-pose
 if "!API_TAG!"=="" set API_TAG=latest
 
 echo === Checking for updates ===

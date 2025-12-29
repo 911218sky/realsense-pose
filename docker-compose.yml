@@ -92,7 +92,7 @@ services:
   # Application
   # ---------------------------------------------------------------------------
   api:
-    image: ${API_IMAGE:-ghcr.io/911218sky/realsense_pose}:${API_TAG:-latest}
+    image: ${API_IMAGE:-ghcr.io/911218sky/realsense-pose}:${API_TAG:-latest}
     build:
       context: .
       dockerfile: ${DOCKERFILE:-Dockerfile}

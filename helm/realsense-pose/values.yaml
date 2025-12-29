@@ -15,7 +15,7 @@ imagePullSecrets: []
 # -----------------------------------------------------------------------------
 api:
   image:
-    repository: ghcr.io/911218sky/realsense_pose
+    repository: ghcr.io/911218sky/realsense-pose
     tag: "latest"
     pullPolicy: IfNotPresent
   

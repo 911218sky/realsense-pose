@@ -63,7 +63,7 @@ helm uninstall realsense-pose
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `api.image.repository` | API image repository | `ghcr.io/911218sky/realsense_pose` |
+| `api.image.repository` | API image repository | `ghcr.io/911218sky/realsense-pose` |
 | `api.image.tag` | API image tag | `latest` |
 | `api.replicaCount` | Number of API replicas | `1` |
 | `api.port` | API service port | `8100` |

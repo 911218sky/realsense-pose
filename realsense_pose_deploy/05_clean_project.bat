@@ -41,7 +41,7 @@ for %%i in (
 )
 
 REM Also try to remove the ghcr image if exists
-for /f "tokens=*" %%i in ('docker images --filter "reference=ghcr.io/911218sky/realsense_pose*" -q 2^>nul') do (
+for /f "tokens=*" %%i in ('docker images --filter "reference=ghcr.io/911218sky/realsense-pose*" -q 2^>nul') do (
   docker image rm %%i 2>nul && echo   Removed ghcr image: %%i
 )
 

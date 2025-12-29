@@ -17,7 +17,7 @@ A pose estimation and analysis system using Intel RealSense cameras with MediaPi
 ### Using Pre-built Image
 
 ```bash
-docker pull ghcr.io/911218sky/realsense_pose:latest
+docker pull ghcr.io/911218sky/realsense-pose:latest
 ```
 
 ## Configuration
