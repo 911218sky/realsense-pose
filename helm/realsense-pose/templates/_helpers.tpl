@@ -81,14 +81,6 @@ app.kubernetes.io/component: redis
 {{- end }}
 
 {{/*
-Fail2ban selector labels
-*/}}
-{{- define "realsense-pose.fail2ban.selectorLabels" -}}
-{{ include "realsense-pose.selectorLabels" . }}
-app.kubernetes.io/component: fail2ban
-{{- end }}
-
-{{/*
 MongoDB connection URI
 */}}
 {{- define "realsense-pose.mongoUri" -}}

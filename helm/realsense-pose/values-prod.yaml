@@ -74,9 +74,6 @@ redis:
       cpu: 500m
       memory: 512Mi
 
-fail2ban:
-  enabled: true
-
 ingress:
   enabled: true
   className: "nginx"

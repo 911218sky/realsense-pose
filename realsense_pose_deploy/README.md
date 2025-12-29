@@ -5,28 +5,31 @@ One-click deployment scripts for Realsense Pose API on Windows.
 ## Quick Start
 
 1. Download `realsense_pose_deploy.zip` and extract
-2. Make sure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is installed and running
-3. Double-click `01_docker_login.bat` to login to registry (first time only)
-4. Double-click `02_deploy.bat`
-5. Done! Visit http://localhost:8100/v1
+2. Run `install_docker.bat` if Docker Desktop is not installed
+3. Make sure Docker Desktop is running
+4. Double-click `docker_login.bat` to login to registry (first time only)
+5. Double-click `deploy.bat`
+6. Done! Visit http://localhost:8100/v1
 
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
-| `01_docker_login.bat` | 🔑 Login to Docker Hub / ghcr.io (first time only) |
-| `02_deploy.bat` | 🚀 First deploy: pull images and start all services |
-| `03_update.bat` | 🔄 Update: pull latest images and restart |
-| `04_stop.bat` | ⏹️ Stop: shut down all containers |
-| `05_clean_project.bat` | 🧹 Clean project: remove containers, images, volumes |
-| `06_prune_docker.bat` | 🗑️ Prune Docker: remove all unused Docker resources |
+| `install_docker.bat` | 🐳 Install Docker Desktop via winget |
+| `install_helm.bat` | 📦 Install Helm via winget (optional, for K8s deployment) |
+| `docker_login.bat` | 🔑 Login to Docker Hub / ghcr.io (first time only) |
+| `deploy.bat` | 🚀 First deploy: pull images and start all services |
+| `update.bat` | 🔄 Update: pull latest images and restart |
+| `stop.bat` | ⏹️ Stop: shut down all containers |
+| `clean_project.bat` | 🧹 Clean project: remove containers, images, volumes |
+| `prune_docker.bat` | 🗑️ Prune Docker: remove all unused Docker resources |
 
 ## Workflow
 
 ```
 First Time Setup    →    Daily Update    →    Stop Services    →    Restart
-01_docker_login         03_update            04_stop              02_deploy
-02_deploy
+docker_login             update               stop                  deploy
+deploy
 ```
 
 ## Requirements
@@ -57,10 +60,10 @@ All data is stored in the script directory:
 A: Make sure Docker Desktop is running
 
 **Q: "unauthorized" or "pull access denied" error?**  
-A: Run `01_docker_login.bat` to login to the registry
+A: Run `docker_login.bat` to login to the registry
 
 **Q: How to completely reset the environment?**  
-A: Run `05_clean_project.bat` and choose to delete data directories
+A: Run `clean_project.bat` and choose to delete data directories
 
 **Q: How to check service status?**  
 A: Open terminal and run `docker compose ps`

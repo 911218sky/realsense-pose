@@ -112,14 +112,6 @@ helm uninstall realsense-pose
 | `redis.persistence.enabled` | Enable persistence | `true` |
 | `redis.persistence.size` | Volume size | `1Gi` |
 
-### Fail2ban
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `fail2ban.enabled` | Enable Fail2ban | `true` |
-| `fail2ban.timezone` | Timezone | `Asia/Taipei` |
-| `fail2ban.logLevel` | Log level | `INFO` |
-
 ### Ingress
 
 | Parameter | Description | Default |

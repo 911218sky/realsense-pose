@@ -68,9 +68,6 @@ redis:
       cpu: 50m
       memory: 128Mi
 
-fail2ban:
-  enabled: false
-
 ingress:
   enabled: false
 

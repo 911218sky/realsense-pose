@@ -141,28 +141,6 @@ redis:
       memory: 256Mi
 
 # -----------------------------------------------------------------------------
-# Fail2ban
-# -----------------------------------------------------------------------------
-fail2ban:
-  enabled: true
-  
-  image:
-    repository: crazymax/fail2ban
-    tag: "latest"
-    pullPolicy: IfNotPresent
-  
-  timezone: "Asia/Taipei"
-  logLevel: "INFO"
-  
-  resources:
-    limits:
-      cpu: 200m
-      memory: 256Mi
-    requests:
-      cpu: 50m
-      memory: 64Mi
-
-# -----------------------------------------------------------------------------
 # Ingress
 # -----------------------------------------------------------------------------
 ingress:
