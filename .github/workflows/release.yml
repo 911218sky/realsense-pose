@@ -81,7 +81,7 @@ jobs:
           
           # Create zip
           cd deploy_package
-          zip -r ../realsense_pose_deploy.zip .
+          zip -r ../realsense-pose_deploy.zip .
 
       - name: Read release notes
         id: release_notes
@@ -94,6 +94,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: realsense_pose_deploy.zip
+          files: realsense-pose_deploy.zip
           body: ${{ steps.release_notes.outputs.RELEASE_BODY }}
           make_latest: true

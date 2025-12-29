@@ -11,7 +11,7 @@ cd /d "%~dp0"
 
 echo.
 echo ==========================================
-echo realsense_pose - Environment Cleanup
+echo realsense-pose - Environment Cleanup
 echo ==========================================
 echo.
 
@@ -32,10 +32,10 @@ if errorlevel 1 (
 echo.
 echo [2/4] Removing project images...
 for %%i in (
-  "realsense_pose_api"
-  "realsense_pose_api_dev"
-  "realsense_pose_nginx"
-  "realsense_pose_fail2ban"
+  "realsense-pose-api"
+  "realsense-pose-api-dev"
+  "realsense-pose-nginx"
+  "realsense-pose-fail2ban"
 ) do (
   docker image rm %%~i 2>nul && echo   Removed image: %%~i
 )
@@ -48,8 +48,8 @@ for /f "tokens=*" %%i in ('docker images --filter "reference=ghcr.io/911218sky/r
 echo.
 echo [3/4] Removing named volumes...
 for %%v in (
-  "realsense_pose_nginx_logs"
-  "realsense_pose_fail2ban_data"
+  "realsense-pose-nginx-logs"
+  "realsense-pose-fail2ban-data"
 ) do (
   docker volume rm %%~v 2>nul && echo   Removed volume: %%~v
 )

@@ -30,4 +30,4 @@
     Please set it using: --set mongodb.auth.rootPassword=YOUR_PASSWORD
 {{- end }}
 
-📚 Documentation: https://github.com/911218sky/realsense_pose
+📚 Documentation: https://github.com/911218sky/realsense-pose

@@ -7,7 +7,7 @@ A pose estimation and analysis system using Intel RealSense cameras with MediaPi
 ### Using Docker (Recommended)
 
 1. Download the latest release from [Releases](../../releases)
-2. Extract `realsense_pose_deploy.zip`
+2. Extract `realsense-pose_deploy.zip`
 3. Copy `env.example` to `.env` and configure as needed
 4. Run:
    ```bash
@@ -34,8 +34,8 @@ Key environment variables in `.env`:
 
 ```bash
 # Clone repository
-git clone https://github.com/911218sky/realsense_pose.git
-cd realsense_pose
+git clone https://github.com/911218sky/realsense-pose.git
+cd realsense-pose
 
 # Start with dev profile
 docker compose --profile dev up --build -d
@@ -102,16 +102,16 @@ Internet → Nginx (Port 80) → API (Port 8100)
 
 ```bash
 # Check status
-docker exec realsense_pose_fail2ban fail2ban-client status
+docker exec realsense-pose-fail2ban fail2ban-client status
 
 # Check specific jail
-docker exec realsense_pose_fail2ban fail2ban-client status nginx-ddos
+docker exec realsense-pose-fail2ban fail2ban-client status nginx-ddos
 
 # Unban an IP
-docker exec realsense_pose_fail2ban fail2ban-client set nginx-ddos unbanip <IP>
+docker exec realsense-pose-fail2ban fail2ban-client set nginx-ddos unbanip <IP>
 
 # View banned IPs
-docker exec realsense_pose_fail2ban fail2ban-client get nginx-ddos banned
+docker exec realsense-pose-fail2ban fail2ban-client get nginx-ddos banned
 ```
 
 ### Customization

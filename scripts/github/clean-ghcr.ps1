@@ -3,7 +3,7 @@
     Delete all versions of a package from GitHub Container Registry (ghcr.io).
 
 .PARAMETER Package
-    Package name (default: realsense_pose)
+    Package name (default: realsense-pose)
 
 .PARAMETER Keep
     Number of latest tagged versions to keep (default: 3)
@@ -22,7 +22,7 @@
 #>
 
 param(
-    [string]$Package = "realsense_pose",
+    [string]$Package = "realsense-pose",
     [int]$Keep = 3,
     [switch]$All,
     [switch]$DryRun

@@ -11,6 +11,6 @@ keywords:
   - fastapi
 maintainers:
   - name: 911218sky
-home: https://github.com/911218sky/realsense_pose
+home: https://github.com/911218sky/realsense-pose
 sources:
-  - https://github.com/911218sky/realsense_pose
+  - https://github.com/911218sky/realsense-pose

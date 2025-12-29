@@ -7,7 +7,7 @@
 #   DB only:     docker compose up -d mongo redis
 # =============================================================================
 
-name: realsense_pose
+name: realsense-pose
 
 # -----------------------------------------------------------------------------
 # Shared configurations (YAML anchors)
@@ -56,7 +56,7 @@ services:
   # ---------------------------------------------------------------------------
   nginx:
     image: ${NGINX_IMAGE:-nginx}:${NGINX_TAG:-alpine}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_nginx
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-nginx
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-8100}:80"
@@ -72,7 +72,7 @@ services:
 
   fail2ban:
     image: ${FAIL2BAN_IMAGE:-crazymax/fail2ban}:${FAIL2BAN_TAG:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_fail2ban
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-fail2ban
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -98,13 +98,13 @@ services:
       dockerfile: ${DOCKERFILE:-Dockerfile}
       args:
         CLEAN_VENV: ${CLEAN_VENV:-0}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_api
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-api
     restart: unless-stopped
     expose:
       - "8100"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=realsense_pose"
+      - "com.centurylinklabs.watchtower.scope=realsense-pose"
     depends_on:
       - mongo
       - redis
@@ -122,7 +122,7 @@ services:
     build:
       context: .
       dockerfile: ${DOCKERFILE:-Dockerfile}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_api_dev
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-api-dev
     restart: unless-stopped
     ports:
       - "${API_PORT:-8100}:8100"
@@ -156,7 +156,7 @@ services:
   # ---------------------------------------------------------------------------
   mongo:
     image: ${MONGO_IMAGE:-mongo}:${MONGO_TAG:-8.0}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_mongo
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-mongo
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
@@ -172,7 +172,7 @@ services:
 
   redis:
     image: ${REDIS_IMAGE:-redis}:${REDIS_TAG:-8-alpine}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_redis
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-redis
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -197,7 +197,7 @@ services:
   # ---------------------------------------------------------------------------
   watchtower:
     image: ${WATCHTOWER_IMAGE:-containrrr/watchtower}:${WATCHTOWER_TAG:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_watchtower
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-watchtower
     restart: unless-stopped
     environment:
       WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
@@ -210,7 +210,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
       - --label-enable
-      - --scope=realsense_pose
+      - --scope=realsense-pose
     logging: *default-logging
 
 # -----------------------------------------------------------------------------
@@ -228,6 +228,6 @@ networks:
 # -----------------------------------------------------------------------------
 volumes:
   nginx_logs:
-    name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_nginx_logs
+    name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-nginx-logs
   fail2ban_data:
-    name: ${COMPOSE_PROJECT_NAME:-realsense_pose}_fail2ban_data
+    name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-fail2ban-data
