@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def _gzip_bytes(data: bytes, level: int = 6) -> bytes:
-    # 產生 gzip 壓縮結果（固定 mtime=0，讓每次建置輸出的 .gz 位元組一致，便於快取/比對）
+    # Generate gzip compression result (fixed mtime=0 for consistent .gz bytes across builds, useful for caching/comparison)
     buf = BytesIO()
     with gzip.GzipFile(filename="", mode="wb", compresslevel=level, mtime=0, fileobj=buf) as f:
         f.write(data)
@@ -14,14 +14,14 @@ def _gzip_bytes(data: bytes, level: int = 6) -> bytes:
 
 
 def _should_compress(path: Path) -> bool:
-    """判斷某個檔案是否需要產出 .br / .gz 預壓縮檔。"""
+    """Determine if a file should have .br / .gz precompressed versions."""
     if not path.is_file():
         return False
     if path.suffix in {".br", ".gz"}:
-        # 已經是壓縮檔本體，不再重複壓縮
+        # Already a compressed file, don't double-compress
         return False
 
-    # 跳過已經高度壓縮或壓縮效果很差的格式（壓了也不會小多少，反而浪費時間/空間）
+    # Skip already highly compressed or poorly compressible formats (compression won't save much, just wastes time/space)
     if path.suffix.lower() in {
         ".png",
         ".jpg",
@@ -45,20 +45,20 @@ def _should_compress(path: Path) -> bool:
     rel = path.as_posix()
     name = path.name
 
-    # Flutter Web 常見的大型入口檔，固定要壓縮
+    # Flutter Web common large entry files, always compress
     if name in {"main.dart.js", "flutter_bootstrap.js", "flutter.js"}:
         return True
 
-    # CanvasKit / skwasm 通常很大，壓縮收益很高
+    # CanvasKit / skwasm usually large, high compression benefit
     if "/canvaskit/" in rel:
         return True
 
-    # 常見靜態檔：文字或可壓縮的二進位（包含 .wasm）
-    # - 壓縮後會在同目錄產出：<原檔名>.br 與 <原檔名>.gz
+    # Common static files: text or compressible binary (including .wasm)
+    # - Compressed versions will be created in same directory: <original_name>.br and <original_name>.gz
     if path.suffix.lower() in {".js", ".wasm", ".symbols", ".css", ".html", ".json", ".map", ".svg"}:
         return True
 
-    # 若 MIME 類型看起來可壓縮，也允許（保守補漏）
+    # If MIME type looks compressible, allow it too (conservative fallback)
     mime, _ = mimetypes.guess_type(str(path))
     if mime and (mime.startswith("text/") or mime in {"application/javascript", "application/json", "application/wasm"}):
         return True
@@ -67,7 +67,7 @@ def _should_compress(path: Path) -> bool:
 
 
 def _is_up_to_date(src: Path, dst: Path) -> bool:
-    """目標壓縮檔是否已存在且比來源檔新（避免每次都重壓）。"""
+    """Check if target compressed file exists and is newer than source (avoid recompressing every time)."""
     if not dst.exists():
         return False
     try:
@@ -85,13 +85,13 @@ def main() -> int:
             "In Docker builds, this is installed via requirements_db.txt."
         ) from e
 
-    # 目的：把 Flutter Web build 輸出的檔案預先壓縮，讓伺服器可以直接回傳 .br/.gz（更快、更省流量）
+    # Purpose: precompress Flutter Web build output files so server can directly return .br/.gz (faster, less bandwidth)
     parser = argparse.ArgumentParser(description="Precompress Flutter Web assets to .br and .gz")
     parser.add_argument("--web-dir", required=True, help="Path to Flutter web build output (e.g. ./web)")
     parser.add_argument("--br-quality", type=int, default=11, help="Brotli quality (0-11). Default 11.")
     parser.add_argument("--gzip-level", type=int, default=9, help="Gzip level (0-9). Default 9.")
     parser.add_argument("--min-bytes", type=int, default=1024, help="Only compress files >= this size. Default 1024.")
-    # --force：即使 .br/.gz 已經存在且較新，也強制重建（例如你改了壓縮品質/等級想重做）
+    # --force: rebuild .br/.gz even if they exist and are newer than source (e.g., if you changed compression quality/level)
     parser.add_argument("--force", action="store_true", help="Rebuild even if .br/.gz exist and are newer than source.")
     args = parser.parse_args()
 
@@ -112,7 +112,7 @@ def main() -> int:
         except OSError:
             continue
         if size < args.min_bytes:
-            # 檔案太小，壓縮收益不大，略過
+            # File too small, compression benefit minimal, skip
             continue
 
         total += 1
@@ -120,7 +120,7 @@ def main() -> int:
         gz_path = p.with_name(p.name + ".gz")
 
         if not args.force and _is_up_to_date(p, br_path) and _is_up_to_date(p, gz_path):
-            # 已有最新壓縮檔，略過
+            # Already have latest compressed files, skip
             continue
 
         data = p.read_bytes()

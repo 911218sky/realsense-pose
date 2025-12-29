@@ -14,7 +14,7 @@ try {
   try {
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'nuitka', '--version')
   } catch {
-    Write-Host 'Nuitka 未安裝，正在安裝...'
+    Write-Host 'Nuitka not installed, installing now...'
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'nuitka')
   }
 
@@ -25,7 +25,7 @@ try {
   )
   $mpModules = Join-Path $mpPkg 'modules'
 
-  Write-Host '編譯中（MinGW64）...'
+  Write-Host 'Compiling (MinGW64)...'
   $nuitkaArgs = @('python', '-m', 'nuitka') + $ModeFlag + @(
     '--mingw64',
     '--jobs=-1',
@@ -42,13 +42,13 @@ try {
   Invoke-CondaRun -VenvPath $VenvPath -Args $nuitkaArgs
 
   Write-Host ''
-  Write-Host "✅ 完成！輸出在 $OutputDir"
+  Write-Host "✅ Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
   exit 0
 } catch {
-  Write-Host '發生錯誤，編譯中止。'
+  Write-Host 'An error occurred, compilation aborted.'
   Write-Error $_
   exit 1
 }

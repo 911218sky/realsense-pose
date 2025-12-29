@@ -5,11 +5,11 @@ $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
 $OutputDir = 'dist'
 $Entry = Join-Path 'src' 'cli.py'
 
-# onedir (輸出一個資料夾)、onefile (輸出一個檔案)
+# onedir (output one folder), onefile (output one file)
 $ModeFlag = '--onedir'
 $PyiFlags = @('--clean', '--noconfirm')
 
-# ---- 體積控制關鍵 ----
+# ---- Key volume control ----
 $env:MPLBACKEND = 'TkAgg'
 $Excludes = @(
   '--exclude-module', 'PyQt5',
@@ -28,11 +28,11 @@ try {
   try {
     Invoke-CondaRun -VenvPath $VenvPath -Args @('pyinstaller', '--version')
   } catch {
-    Write-Host 'PyInstaller 未安裝，正在安裝...'
+    Write-Host 'PyInstaller not installed, installing now...'
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'pyinstaller')
   }
 
-  Write-Host "以 PyInstaller 打包，目標：$Entry"
+  Write-Host "Packaging with PyInstaller, target: $Entry"
   Write-Host ''
 
   $pyiArgs = @('pyinstaller', $ModeFlag) + $PyiFlags + @(
@@ -44,13 +44,13 @@ try {
   Invoke-CondaRun -VenvPath $VenvPath -Args $pyiArgs
 
   Write-Host ''
-  Write-Host "✅ 完成！輸出在 $OutputDir"
+  Write-Host "✅ Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
   exit 0
 } catch {
-  Write-Host '發生錯誤，打包中止。'
+  Write-Host 'An error occurred, packaging aborted.'
   Write-Error $_
   exit 1
 }

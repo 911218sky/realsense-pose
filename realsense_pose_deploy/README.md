@@ -11,7 +11,7 @@ One-click deployment scripts for Realsense Pose API.
 3. Make sure Docker Desktop is running
 4. Double-click `docker_login.bat` to login to registry (first time only)
 5. Double-click `deploy.bat`
-6. Done! Visit http://localhost:8100/v1
+6. Done! Visit http://localhost:8100
 
 ### Linux
 
@@ -22,7 +22,7 @@ One-click deployment scripts for Realsense Pose API.
 ```bash
 docker compose up -d
 ```
-5. Done! Visit http://localhost:8100/v1
+5. Done! Visit http://localhost:8100
 
 ## Install Docker
 

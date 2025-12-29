@@ -20,21 +20,21 @@ $IgnoreList = @(
 $IgnoreString = ($IgnoreList -join ',')
 
 try {
-  Write-Host '🔍 分析專案依賴中...'
-  Write-Host "📁 忽略目錄: $IgnoreString"
+  Write-Host 'Analyzing project dependencies...'
+  Write-Host "Ignoring directories: $IgnoreString"
   Write-Host ''
 
   # Check pipreqs availability (try running help)
   $rc = Try-CondaRun -VenvPath $VenvPath -Args @('pipreqs', '--help')
   if ($rc -ne 0) {
-    Write-Host '❌ pipreqs 未安裝，正在安裝...'
+    Write-Host 'pipreqs not installed, installing now...'
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', 'pipreqs')
   } else {
-    Write-Host '✅ pipreqs 已安裝'
+    Write-Host 'pipreqs already installed'
   }
 
   Write-Host ''
-  Write-Host '正在執行 pipreqs，這可能需要一點時間...'
+  Write-Host 'Running pipreqs, this may take a moment...'
 
   $rc = Try-CondaRun -VenvPath $VenvPath -Args @(
     'pipreqs', '.\src',
@@ -45,7 +45,7 @@ try {
     '--savepath', $OutputFile
   )
   if ($rc -ne 0) {
-    Write-Host 'pipreqs 執行失敗，改用 python -m pipreqs 嘗試...'
+    Write-Host 'pipreqs execution failed, trying with python -m pipreqs...'
     Invoke-CondaRun -VenvPath $VenvPath -Args @(
       'python', '-m', 'pipreqs', '.\src',
       '--encoding=utf-8-sig',
@@ -58,23 +58,23 @@ try {
 
   if (Test-Path $OutputFile) {
     Write-Host ''
-    Write-Host "✅ $OutputFile 產生成功！"
+    Write-Host "$OutputFile generated successfully!"
     Write-Host ''
-    Write-Host '📋 產生的依賴清單如下：'
+    Write-Host 'Generated dependency list:'
     Write-Host '===================='
     Get-Content $OutputFile
     Write-Host '===================='
     Write-Host ''
-    Write-Host "💡 要安裝依賴，請執行: pip install -r $OutputFile"
+    Write-Host "Tip: To install dependencies, run: pip install -r $OutputFile"
     exit 0
   }
 
-  throw "❗ 未找到 $OutputFile，可能是 pipreqs 未產生檔案或發生錯誤。"
+  throw "Failed to generate $OutputFile, pipreqs may not have created the file or an error occurred."
 } catch {
   Write-Host ''
-  Write-Host '====== 發生錯誤 ======'
-  Write-Host '無法完成 requirements 檔案產生。請檢查上方訊息以找出錯誤原因。'
-  Write-Host '======================'
+  Write-Host '====== An Error Occurred ======'
+  Write-Host 'Unable to complete requirements file generation. Please check the message above for the error cause.'
+  Write-Host '=============================='
   Write-Error $_
   exit 1
 }

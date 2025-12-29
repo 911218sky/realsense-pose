@@ -16,11 +16,11 @@ try {
   try {
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'nuitka', '--version')
   } catch {
-    Write-Host 'Nuitka 未安裝，正在安裝...'
+    Write-Host 'Nuitka not installed, installing now...'
     Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'nuitka')
   }
 
-  Write-Host '編譯中 (module mode)...'
+  Write-Host 'Compiling (module mode)...'
   $nuitkaArgs = @(
     'python', '-m', 'nuitka',
     '--clang'
@@ -31,13 +31,13 @@ try {
   Invoke-CondaRun -VenvPath $VenvPath -Args $nuitkaArgs
 
   Write-Host ''
-  Write-Host "✅ 完成！輸出在 $OutputDir"
+  Write-Host "✅ Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
   exit 0
 } catch {
-  Write-Host '發生錯誤'
+  Write-Host 'An error occurred'
   Write-Error $_
   exit 1
 }

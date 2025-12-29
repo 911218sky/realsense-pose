@@ -32,7 +32,6 @@ wheels/
 *.swp
 *.swo
 *~
-.kiro
 
 # Environment
 .env

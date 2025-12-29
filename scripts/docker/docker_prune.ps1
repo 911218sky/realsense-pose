@@ -1,8 +1,8 @@
-# 清理 Docker 未使用的垃圾（images, containers, volumes, networks, build cache）
-# 用法：
-#   .\scripts\docker\docker_prune.ps1          # 預設清理（保留使用中的）
-#   .\scripts\docker\docker_prune.ps1 --all    # 清理所有未使用的 images（包括 tagged）
-#   .\scripts\docker\docker_prune.ps1 --nuke   # 核彈級清理（全部刪光）
+# Clean Docker unused resources (images, containers, volumes, networks, build cache)
+# Usage:
+#   .\scripts\docker\docker_prune.ps1          # Default cleanup (keep in-use resources)
+#   .\scripts\docker\docker_prune.ps1 --all    # Clean all unused images (including tagged)
+#   .\scripts\docker\docker_prune.ps1 --nuke   # Nuclear cleanup (delete everything)
 
 . (Join-Path $PSScriptRoot '..\_common.ps1')
 $null = Initialize-Script -ScriptRoot $PSScriptRoot
@@ -31,16 +31,16 @@ Write-Host 'Docker Prune - Clean Unused Resources'
 Write-Host '=========================================='
 Write-Host ''
 
-# 1. 停止的容器
+# 1. Stopped containers
 Write-Host '[1/6] Removing stopped containers...'
 & docker container prune -f
 
-# 2. 懸空的 images（無 tag）
+# 2. Dangling images (no tag)
 Write-Host ''
 Write-Host '[2/6] Removing dangling images...'
 & docker image prune -f
 
-# 3. 未使用的 images（含 tagged，需 --all）
+# 3. Unused images (including tagged, requires --all)
 if ($All) {
   Write-Host ''
   Write-Host '[3/6] Removing ALL unused images (including tagged)...'
@@ -50,25 +50,25 @@ if ($All) {
   Write-Host '[3/6] Skipped (use --all to remove tagged images)'
 }
 
-# 4. 未使用的 volumes
+# 4. Unused volumes
 Write-Host ''
 Write-Host '[4/6] Removing unused volumes...'
 & docker volume prune -f
 
-# 5. 未使用的 networks
+# 5. Unused networks
 Write-Host ''
 Write-Host '[5/6] Removing unused networks...'
 & docker network prune -f
 
-# 6. Build cache（最大的垃圾來源）
+# Clean old backups
 Write-Host ''
 Write-Host '[6/6] Removing build cache...'
 if ($Nuke) {
-  # 核彈：清除所有 build cache
+  # Nuclear: remove all build cache
   & docker builder prune --all -f
   & docker buildx prune --all -f 2>$null
 } else {
-  # 一般：只清除未使用的
+  # Normal: only remove unused
   & docker builder prune -f
   & docker buildx prune -f 2>$null
 }
