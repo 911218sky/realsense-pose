@@ -316,7 +316,3 @@ api:
     enabled: true
     clientSecrets: "client1=secret1,client2=secret2"
 ```
-
-## License
-
-MIT
