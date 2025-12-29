@@ -49,6 +49,9 @@ jobs:
           cp realsense_pose_deploy/*.bat deploy_package/
           cp realsense_pose_deploy/README.md deploy_package/
           
+          # Copy backup scripts
+          cp -r realsense_pose_deploy/backup deploy_package/
+          
           # Copy README to root for release body
           cp realsense_pose_deploy/README.md RELEASE_NOTES.md
           
