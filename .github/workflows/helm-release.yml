@@ -64,13 +64,17 @@ jobs:
         run: helm lint helm/realsense-pose/
 
       - name: Login to GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          echo "${GITHUB_TOKEN}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
       - name: Package Helm Chart
         run: helm package helm/realsense-pose/ -d .
 
       - name: Push Helm Chart to OCI Registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CHART_FILE=$(ls ${{ env.CHART_NAME }}-*.tgz)
           helm push "${CHART_FILE}" oci://${{ env.REGISTRY }}/${{ github.repository_owner }}
