@@ -268,8 +268,10 @@ services:
 # -----------------------------------------------------------------------------
 networks:
   frontend:
+    name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-frontend
     driver: bridge
   backend:
+    name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-backend
     driver: bridge
     internal: true
 
