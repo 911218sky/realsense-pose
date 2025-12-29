@@ -35,15 +35,77 @@ echo Backup Script: %SCRIPT_PATH%
 echo.
 
 REM Set backup time
-set /p BACKUP_TIME="Enter daily backup time (Format: HH:MM, e.g. 02:00): "
+set /p BACKUP_TIME="Enter daily backup time (Format: HH:MM or H:MM, e.g. 02:00 or 2:00): "
 
-REM Validate time format
-echo %BACKUP_TIME% | findstr /r "^[0-2][0-9]:[0-5][0-9]$" >nul
+REM Simple validation: check if contains colon
+echo %BACKUP_TIME% | findstr ":" >nul
 if %errorlevel% neq 0 (
-  echo Error: Invalid time format!
+  echo Error: Invalid time format! Must contain ':'
   pause
   exit /b 1
 )
+
+REM Extract hour and minute
+for /f "tokens=1,2 delims=:" %%a in ("%BACKUP_TIME%") do (
+  set HOUR=%%a
+  set MINUTE=%%b
+)
+
+REM Validate hour and minute are numbers
+set /a TEST_HOUR=%HOUR% 2>nul
+set /a TEST_MINUTE=%MINUTE% 2>nul
+
+if not defined HOUR (
+  echo Error: Invalid hour!
+  pause
+  exit /b 1
+)
+
+if not defined MINUTE (
+  echo Error: Invalid minute!
+  pause
+  exit /b 1
+)
+
+REM Validate ranges
+if %HOUR% LSS 0 (
+  echo Error: Hour must be 0-23!
+  pause
+  exit /b 1
+)
+
+if %HOUR% GTR 23 (
+  echo Error: Hour must be 0-23!
+  pause
+  exit /b 1
+)
+
+if %MINUTE% LSS 0 (
+  echo Error: Minute must be 0-59!
+  pause
+  exit /b 1
+)
+
+if %MINUTE% GTR 59 (
+  echo Error: Minute must be 0-59!
+  pause
+  exit /b 1
+)
+
+REM Add leading zeros if needed
+if %HOUR% LSS 10 (
+  if not "%HOUR:~0,1%"=="0" (
+    set HOUR=0%HOUR%
+  )
+)
+
+if %MINUTE% LSS 10 (
+  if not "%MINUTE:~0,1%"=="0" (
+    set MINUTE=0%MINUTE%
+  )
+)
+
+set BACKUP_TIME=%HOUR%:%MINUTE%
 
 echo.
 echo The following scheduled task will be created:
@@ -79,7 +141,7 @@ schtasks /create ^
 if %errorlevel% equ 0 (
   echo.
   echo ============================================
-  echo ✓ Scheduled task created successfully!
+  echo [OK] Scheduled task created successfully!
   echo ============================================
   echo.
   echo Task Details:
@@ -92,7 +154,7 @@ if %errorlevel% equ 0 (
   echo.
 ) else (
   echo.
-  echo ✗ Failed to create scheduled task!
+  echo [FAIL] Failed to create scheduled task!
   echo.
 )
 

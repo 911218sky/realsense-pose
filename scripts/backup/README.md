@@ -2,7 +2,13 @@
 
 ## Overview
 
-This backup system backs up MongoDB and Redis Docker Volume data to the `backups/latest` directory. Each backup overwrites the previous one, keeping only the latest backup.
+This backup system backs up MongoDB and Redis Docker Volume data with automatic rotation. It keeps the latest 7 backups and automatically deletes older ones.
+
+**Features:**
+- Keeps up to 7 backups (configurable)
+- Timestamped backup directories
+- Automatic cleanup of old backups
+- Select which backup to restore
 
 ## Scripts
 
@@ -73,23 +79,29 @@ scripts\backup\migrate_to_volume.bat
 
 ```
 backups/
-└── latest/
-    ├── mongo.tar.gz        # MongoDB backup
-    ├── redis.tar.gz        # Redis backup
-    └── backup_time.txt     # Backup time record
+├── 20241229_140530/         # Backup from 2024-12-29 14:05:30
+│   ├── mongo.tar.gz
+│   ├── redis.tar.gz
+│   └── backup_time.txt
+├── 20241228_020000/         # Backup from 2024-12-28 02:00:00
+│   ├── mongo.tar.gz
+│   ├── redis.tar.gz
+│   └── backup_time.txt
+└── ...                      # Up to 7 backups total
 ```
 
 ## Notes
 
-1. **Only keeps the latest backup**
-   - Each backup overwrites the previous one
-   - To keep multiple versions, manually copy the `backups/latest` directory
+1. **Keeps up to 7 backups**
+   - Automatically deletes backups older than the 7 most recent
+   - Configurable by editing `MAX_BACKUPS` in `backup_volumes.bat`
 
 2. **Backup does not delete Docker Volume**
    - Backup only copies data, does not affect running services
    - Can be executed while services are running
 
 3. **Restore will overwrite existing data**
+   - You can select which backup to restore
    - MongoDB and Redis containers will be stopped before restore
    - Containers will be automatically restarted after restore
 

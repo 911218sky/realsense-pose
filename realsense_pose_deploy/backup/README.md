@@ -2,7 +2,13 @@
 
 ## Overview
 
-This backup system backs up MongoDB and Redis Docker Volume data to the `backups/latest` directory. Each backup overwrites the previous one, keeping only the latest backup.
+This backup system backs up MongoDB and Redis Docker Volume data with automatic rotation. It keeps the latest 7 backups and automatically deletes older ones.
+
+**Features:**
+- Keeps up to 7 backups (configurable)
+- Timestamped backup directories
+- Automatic cleanup of old backups
+- Select which backup to restore
 
 ## Scripts
 
@@ -10,14 +16,14 @@ This backup system backs up MongoDB and Redis Docker Volume data to the `backups
 Execute a backup immediately.
 
 ```bash
-backup\backup_volumes.bat
+scripts\backup\backup_volumes.bat
 ```
 
 ### 2. `restore_volumes.bat` - Restore Backup
 Restore data from `backups/latest`.
 
 ```bash
-backup\restore_volumes.bat
+scripts\backup\restore_volumes.bat
 ```
 
 ### 3. `setup_daily_backup.bat` - Setup Daily Automatic Backup
@@ -30,7 +36,7 @@ Create a daily automatic backup task in Windows Task Scheduler.
 
 ```bash
 # Right-click -> Run as Administrator
-backup\setup_daily_backup.bat
+scripts\backup\setup_daily_backup.bat
 ```
 
 ### 4. `remove_daily_backup.bat` - Remove Automatic Backup
@@ -38,14 +44,14 @@ Remove the automatic backup task from Task Scheduler.
 
 ```bash
 # Right-click -> Run as Administrator
-backup\remove_daily_backup.bat
+scripts\backup\remove_daily_backup.bat
 ```
 
 ### 5. `migrate_to_volume.bat` - Data Migration
 Migrate existing `./data/mongo` and `./data/redis` data to Docker Volume.
 
 ```bash
-backup\migrate_to_volume.bat
+scripts\backup\migrate_to_volume.bat
 ```
 
 ## Quick Start
@@ -54,42 +60,48 @@ backup\migrate_to_volume.bat
 
 1. **Migrate existing data (if any):**
    ```bash
-   backup\migrate_to_volume.bat
+   scripts\backup\migrate_to_volume.bat
    ```
 
 2. **Setup daily automatic backup:**
    ```bash
    # Right-click -> Run as Administrator
-   backup\setup_daily_backup.bat
+   scripts\backup\setup_daily_backup.bat
    ```
 
 ### Daily Usage
 
-- **Manual backup:** `backup\backup_volumes.bat`
-- **Restore data:** `backup\restore_volumes.bat`
+- **Manual backup:** `scripts\backup\backup_volumes.bat`
+- **Restore data:** `scripts\backup\restore_volumes.bat`
 - **View backup time:** Check `backups\latest\backup_time.txt`
 
 ## Backup Location
 
 ```
 backups/
-└── latest/
-    ├── mongo.tar.gz        # MongoDB backup
-    ├── redis.tar.gz        # Redis backup
-    └── backup_time.txt     # Backup time record
+├── 20241229_140530/         # Backup from 2024-12-29 14:05:30
+│   ├── mongo.tar.gz
+│   ├── redis.tar.gz
+│   └── backup_time.txt
+├── 20241228_020000/         # Backup from 2024-12-28 02:00:00
+│   ├── mongo.tar.gz
+│   ├── redis.tar.gz
+│   └── backup_time.txt
+└── ...                      # Up to 7 backups total
 ```
 
 ## Notes
 
-1. **Only keeps the latest backup**
-   - Each backup overwrites the previous one
-   - To keep multiple versions, manually copy the `backups/latest` directory
+1. **Keeps up to 7 backups**
+   - Automatically deletes backups older than the 7 most recent
+   - Configurable by editing `MAX_BACKUPS` in `backup_volumes.bat`
 
 2. **Backup does not delete Docker Volume**
    - Backup only copies data, does not affect running services
    - Can be executed while services are running
 
 3. **Restore will overwrite existing data**
+   - You can select which backup to restore
    - MongoDB and Redis containers will be stopped before restore
    - Containers will be automatically restarted after restore
 

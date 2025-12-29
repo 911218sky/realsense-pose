@@ -42,10 +42,10 @@ schtasks /delete /tn "RealSense-Pose-Daily-Backup" /f
 
 if %errorlevel% equ 0 (
   echo.
-  echo ✓ Scheduled task removed
+  echo [OK] Scheduled task removed
 ) else (
   echo.
-  echo ✗ Removal failed
+  echo [FAIL] Removal failed
 )
 
 echo.

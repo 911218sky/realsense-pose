@@ -63,9 +63,9 @@ if not defined SKIP_MONGO (
     alpine sh -c "cp -r /source/. /data/"
   
   if %errorlevel% equ 0 (
-    echo       ✓ MongoDB migration completed
+    echo       [OK] MongoDB migration completed
   ) else (
-    echo       ✗ MongoDB migration failed
+    echo       [FAIL] MongoDB migration failed
   )
 ) else (
   echo [1/3] Skipping MongoDB migration
@@ -80,9 +80,9 @@ if not defined SKIP_REDIS (
     alpine sh -c "cp -r /source/. /data/"
   
   if %errorlevel% equ 0 (
-    echo       ✓ Redis migration completed
+    echo       [OK] Redis migration completed
   ) else (
-    echo       ✗ Redis migration failed
+    echo       [FAIL] Redis migration failed
   )
 ) else (
   echo [2/3] Skipping Redis migration
