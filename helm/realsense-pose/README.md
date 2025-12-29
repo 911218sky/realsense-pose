@@ -8,12 +8,26 @@ A Helm chart for deploying RealSense Pose application on Kubernetes.
 - Helm 3.8+
 - PV provisioner support in the underlying infrastructure (for persistence)
 
-### Install Helm (Windows)
+### Install Helm
 
+**Windows (PowerShell)**
 ```powershell
 winget install Helm.Helm --source winget
 # Restart terminal after installation
 helm version
+```
+
+**Linux (Ubuntu/Debian)**
+```bash
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+```
+
+**macOS**
+```bash
+brew install helm
 ```
 
 ### Enable Kubernetes (Docker Desktop)
@@ -27,7 +41,18 @@ helm version
 
 ### Local Development (Docker Desktop)
 
+**Windows (PowerShell)**
 ```powershell
+# Install with LoadBalancer (recommended for Docker Desktop)
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=your-password `
+  --set service.type=LoadBalancer
+
+# Access at http://localhost:80
+```
+
+**Linux / macOS**
+```bash
 # Install with LoadBalancer (recommended for Docker Desktop)
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=your-password \
@@ -38,7 +63,20 @@ helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
 
 ### Using Port Forward (Alternative)
 
+**Windows (PowerShell)**
 ```powershell
+# Install
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=your-password
+
+# Forward port (keep terminal open)
+kubectl port-forward svc/realsense-pose-realsense-pose-helm-nginx 8100:80
+
+# Access at http://localhost:8100
+```
+
+**Linux / macOS**
+```bash
 # Install
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=your-password
@@ -53,7 +91,20 @@ kubectl port-forward svc/realsense-pose-realsense-pose-helm-nginx 8100:80
 
 ### From OCI Registry (Recommended)
 
+**Windows (PowerShell)**
 ```powershell
+# Install latest version
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
+
+# Install specific version
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --version 1.0.3 `
+  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
+```
+
+**Linux / macOS**
+```bash
 # Install latest version
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
@@ -66,7 +117,14 @@ helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
 
 ### From Local Chart (Development)
 
+**Windows (PowerShell)**
 ```powershell
+helm install realsense-pose ./helm/realsense-pose `
+  -f ./helm/realsense-pose/values-dev.yaml
+```
+
+**Linux / macOS**
+```bash
 helm install realsense-pose ./helm/realsense-pose \
   -f ./helm/realsense-pose/values-dev.yaml
 ```
@@ -77,7 +135,17 @@ helm install realsense-pose ./helm/realsense-pose \
 
 Best for Docker Desktop or cloud environments with LoadBalancer support.
 
+**Windows (PowerShell)**
 ```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=password `
+  --set service.type=LoadBalancer
+
+# Access at http://localhost:80
+```
+
+**Linux / macOS**
+```bash
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=password \
   --set service.type=LoadBalancer
@@ -89,7 +157,20 @@ helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
 
 Exposes service on a static port on each node.
 
+**Windows (PowerShell)**
 ```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=password `
+  --set service.type=NodePort
+
+# Get the assigned port
+kubectl get svc realsense-pose-realsense-pose-helm-nginx
+
+# Access at http://localhost:<NodePort>
+```
+
+**Linux / macOS**
+```bash
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=password \
   --set service.type=NodePort
@@ -104,7 +185,7 @@ kubectl get svc realsense-pose-realsense-pose-helm-nginx
 
 Internal access only, requires port-forward.
 
-```powershell
+```bash
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=password
 
@@ -116,7 +197,15 @@ kubectl port-forward svc/realsense-pose-realsense-pose-helm-nginx 8100:80
 
 ### Upgrade to Latest Version
 
+**Windows (PowerShell)**
 ```powershell
+helm upgrade realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  --set mongodb.auth.rootPassword=password `
+  --set service.type=LoadBalancer
+```
+
+**Linux / macOS**
+```bash
 helm upgrade realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=password \
   --set service.type=LoadBalancer
@@ -124,7 +213,7 @@ helm upgrade realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
 
 ### Uninstall
 
-```powershell
+```bash
 helm uninstall realsense-pose
 
 # Also delete PVCs if you want to remove all data
@@ -133,7 +222,17 @@ kubectl delete pvc -l app.kubernetes.io/instance=realsense-pose
 
 ## Production Deployment
 
+**Windows (PowerShell)**
 ```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm `
+  -f ./helm/realsense-pose/values-prod.yaml `
+  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD `
+  --set ingress.enabled=true `
+  --set ingress.hosts[0].host=your-domain.com
+```
+
+**Linux / macOS**
+```bash
 helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   -f ./helm/realsense-pose/values-prod.yaml \
   --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD \
@@ -206,7 +305,7 @@ helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
 
 ### Check Status
 
-```powershell
+```bash
 # View all pods
 kubectl get pods -l app.kubernetes.io/instance=realsense-pose
 
@@ -219,7 +318,7 @@ kubectl get all -l app.kubernetes.io/instance=realsense-pose
 
 ### View Logs
 
-```powershell
+```bash
 # API logs
 kubectl logs -l app.kubernetes.io/component=api -f
 
@@ -232,13 +331,13 @@ kubectl logs -l app.kubernetes.io/component=mongodb -f
 
 ### Access MongoDB Shell
 
-```powershell
+```bash
 kubectl exec -it realsense-pose-realsense-pose-helm-mongodb-0 -- mongosh -u root -p
 ```
 
 ### Restart Deployment
 
-```powershell
+```bash
 kubectl rollout restart deployment -l app.kubernetes.io/instance=realsense-pose
 ```
 
@@ -246,7 +345,7 @@ kubectl rollout restart deployment -l app.kubernetes.io/instance=realsense-pose
 
 ### Pod not starting
 
-```powershell
+```bash
 # Check pod status
 kubectl describe pod <pod-name>
 
@@ -268,7 +367,7 @@ kubectl get events --sort-by='.lastTimestamp'
 
 ### Database connection issues
 
-```powershell
+```bash
 # Check MongoDB pod
 kubectl logs -l app.kubernetes.io/component=mongodb
 
