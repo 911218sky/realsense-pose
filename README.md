@@ -29,6 +29,8 @@ Key environment variables in `.env`:
 | `API_PORT` | 8100 | API server port |
 | `MONGO_ROOT_PASSWORD` | - | MongoDB password |
 | `IS_PROD` | 0 | Production mode |
+| `HOST_DATA_DIR` | ./data | Application data directory (outputs, cache) |
+| `HOST_DATASET_DIR` | ./data/bag | ROS bag files for pose analysis |
 | `HOST_MONGO_DIR` | (empty) | MongoDB storage path (empty = Docker Volume) |
 | `HOST_REDIS_DIR` | (empty) | Redis storage path (empty = Docker Volume) |
 | `BACKUP_CRON` | 0 2 * * * | Backup schedule (2 AM daily) |

@@ -30,8 +30,6 @@ One-click deployment scripts for Realsense Pose API on Windows.
 |--------|-------------|
 | `backup/backup_volumes.bat` | 💾 Manual backup of MongoDB and Redis data |
 | `backup/restore_volumes.bat` | 📥 Restore data from backup |
-| `backup/setup_daily_backup.bat` | ⏰ Setup automatic daily backup (requires admin) |
-| `backup/remove_daily_backup.bat` | ❌ Remove automatic daily backup |
 | `backup/migrate_to_volume.bat` | 🔄 Migrate existing data to Docker Volume |
 
 See `backup/README.md` for detailed backup documentation.
@@ -53,6 +51,7 @@ deploy
 ## Configuration
 
 A `.env` file will be created automatically on first run. You can customize:
+
 - `NGINX_PORT` - API external port (default: 8100)
 - `MONGO_ROOT_PASSWORD` - MongoDB password
 - See `env.example` for all available options
@@ -60,19 +59,27 @@ A `.env` file will be created automatically on first run. You can customize:
 ## Data Storage
 
 MongoDB and Redis data are stored in Docker Volumes for better performance:
+
 ```
 Docker Volumes:
-  realsense-pose-mongo-data   - MongoDB data
-  realsense-pose-redis-data   - Redis data
+realsense-pose-mongo-data   - MongoDB data
+realsense-pose-redis-data   - Redis data
 
 Backups:
-  ./backups/latest/           - Latest backup files
+./backups/                  - Backup files (auto & manual)
 ```
 
-**Backup & Restore:**
-- Manual backup: `backup\backup_volumes.bat`
-- Restore data: `backup\restore_volumes.bat`
-- Setup daily auto-backup: `backup\setup_daily_backup.bat` (run as admin)
+## Automatic Backup
+
+The deployment includes an automatic backup service that runs inside Docker:
+
+- **Schedule**: Daily at 2:00 AM (configurable via `BACKUP_CRON` in `.env`)
+- **Retention**: Keeps last 7 backups (configurable via `MAX_BACKUPS` in `.env`)
+- **Location**: `./backups/` directory
+
+**Manual backup/restore:**
+- Backup: `backup\backup_volumes.bat`
+- Restore: `backup\restore_volumes.bat`
 
 See `backup/README.md` for more details.
 
@@ -89,3 +96,6 @@ A: Run `clean_project.bat` and choose to delete data directories
 
 **Q: How to check service status?**  
 A: Open terminal and run `docker compose ps`
+
+**Q: How to change backup schedule?**  
+A: Edit `BACKUP_CRON` in `.env` file (cron format, default: `0 2 * * *` = 2 AM daily)
