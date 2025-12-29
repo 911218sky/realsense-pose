@@ -8,45 +8,137 @@ A Helm chart for deploying RealSense Pose application on Kubernetes.
 - Helm 3.8+
 - PV provisioner support in the underlying infrastructure (for persistence)
 
-## Installation
+### Install Helm (Windows)
+
+```powershell
+winget install Helm.Helm --source winget
+# Restart terminal after installation
+helm version
+```
+
+### Enable Kubernetes (Docker Desktop)
+
+1. Open Docker Desktop
+2. Settings → Kubernetes → Enable Kubernetes
+3. Click "Apply & Restart"
+4. Wait for Kubernetes to start
+
+## Quick Start
+
+### Local Development (Docker Desktop)
+
+```powershell
+# Install with LoadBalancer (recommended for Docker Desktop)
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=your-password \
+  --set service.type=LoadBalancer
+
+# Access at http://localhost:80
+```
+
+### Using Port Forward (Alternative)
+
+```powershell
+# Install
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=your-password
+
+# Forward port (keep terminal open)
+kubectl port-forward svc/realsense-pose-realsense-pose-helm-nginx 8100:80
+
+# Access at http://localhost:8100
+```
+
+## Installation Options
 
 ### From OCI Registry (Recommended)
 
-```bash
+```powershell
 # Install latest version
-helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose \
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
   --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
 
 # Install specific version
-helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose --version 1.0.0 \
-  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
-
-# With custom values file
-helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose \
-  -f values-prod.yaml \
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --version 1.0.3 \
   --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD
 ```
 
 ### From Local Chart (Development)
 
-```bash
+```powershell
 helm install realsense-pose ./helm/realsense-pose \
   -f ./helm/realsense-pose/values-dev.yaml
 ```
 
-### Production Deployment
+## Service Types
 
-```bash
-helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose \
-  -f ./helm/realsense-pose/values-prod.yaml \
-  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD \
-  --set ingress.hosts[0].host=your-domain.com
+### LoadBalancer (Docker Desktop / Cloud)
+
+Best for Docker Desktop or cloud environments with LoadBalancer support.
+
+```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=password \
+  --set service.type=LoadBalancer
+
+# Access at http://localhost:80
 ```
 
-## Uninstallation
+### NodePort
 
-```bash
+Exposes service on a static port on each node.
+
+```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=password \
+  --set service.type=NodePort
+
+# Get the assigned port
+kubectl get svc realsense-pose-realsense-pose-helm-nginx
+
+# Access at http://localhost:<NodePort>
+```
+
+### ClusterIP (Default)
+
+Internal access only, requires port-forward.
+
+```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=password
+
+# Port forward to access
+kubectl port-forward svc/realsense-pose-realsense-pose-helm-nginx 8100:80
+```
+
+## Upgrade & Uninstall
+
+### Upgrade to Latest Version
+
+```powershell
+helm upgrade realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  --set mongodb.auth.rootPassword=password \
+  --set service.type=LoadBalancer
+```
+
+### Uninstall
+
+```powershell
 helm uninstall realsense-pose
+
+# Also delete PVCs if you want to remove all data
+kubectl delete pvc -l app.kubernetes.io/instance=realsense-pose
+```
+
+## Production Deployment
+
+```powershell
+helm install realsense-pose oci://ghcr.io/911218sky/realsense-pose-helm \
+  -f ./helm/realsense-pose/values-prod.yaml \
+  --set mongodb.auth.rootPassword=YOUR_SECURE_PASSWORD \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=your-domain.com
 ```
 
 ## Configuration
@@ -59,6 +151,13 @@ helm uninstall realsense-pose
 | `fullnameOverride` | Override full name | `""` |
 | `imagePullSecrets` | Image pull secrets | `[]` |
 
+### Service
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `service.type` | Service type: `ClusterIP`, `NodePort`, `LoadBalancer` | `ClusterIP` |
+| `service.port` | Service port | `80` |
+
 ### API Service
 
 | Parameter | Description | Default |
@@ -70,32 +169,16 @@ helm uninstall realsense-pose
 | `api.prefix` | API URL prefix | `/v1` |
 | `api.isProd` | Production mode | `"1"` |
 | `api.serveWeb` | Serve web UI | `"1"` |
-| `api.corsAllowOrigins` | CORS allowed origins | `""` |
-| `api.auth.enabled` | Enable authentication | `false` |
-| `api.auth.clientSecrets` | Auth client secrets | `""` |
 | `api.resources.limits.cpu` | CPU limit | `1000m` |
 | `api.resources.limits.memory` | Memory limit | `2Gi` |
 | `api.persistence.data.enabled` | Enable data persistence | `true` |
 | `api.persistence.data.size` | Data volume size | `10Gi` |
-| `api.persistence.outputs.enabled` | Enable outputs persistence | `true` |
-| `api.persistence.outputs.size` | Outputs volume size | `10Gi` |
-
-### Nginx
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `nginx.enabled` | Enable Nginx reverse proxy | `true` |
-| `nginx.image.repository` | Nginx image | `nginx` |
-| `nginx.image.tag` | Nginx tag | `alpine` |
-| `nginx.replicaCount` | Number of Nginx replicas | `1` |
 
 ### MongoDB
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mongodb.enabled` | Enable MongoDB | `true` |
-| `mongodb.image.repository` | MongoDB image | `mongo` |
-| `mongodb.image.tag` | MongoDB tag | `8.0` |
 | `mongodb.auth.rootPassword` | **REQUIRED** Root password | `""` |
 | `mongodb.auth.database` | Database name | `nycu_rehab` |
 | `mongodb.persistence.enabled` | Enable persistence | `true` |
@@ -106,8 +189,6 @@ helm uninstall realsense-pose
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `redis.enabled` | Enable Redis | `true` |
-| `redis.image.repository` | Redis image | `redis` |
-| `redis.image.tag` | Redis tag | `8-alpine` |
 | `redis.maxmemory` | Max memory | `256mb` |
 | `redis.persistence.enabled` | Enable persistence | `true` |
 | `redis.persistence.size` | Volume size | `1Gi` |
@@ -118,15 +199,82 @@ helm uninstall realsense-pose
 |-----------|-------------|---------|
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.className` | Ingress class | `nginx` |
-| `ingress.annotations` | Ingress annotations | `{}` |
-| `ingress.hosts` | Ingress hosts | `[{host: realsense-pose.local, paths: [{path: /, pathType: Prefix}]}]` |
+| `ingress.hosts` | Ingress hosts | See values.yaml |
 | `ingress.tls` | TLS configuration | `[]` |
 
-### Network Policy
+## Common Operations
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
+### Check Status
+
+```powershell
+# View all pods
+kubectl get pods -l app.kubernetes.io/instance=realsense-pose
+
+# View services
+kubectl get svc -l app.kubernetes.io/instance=realsense-pose
+
+# View all resources
+kubectl get all -l app.kubernetes.io/instance=realsense-pose
+```
+
+### View Logs
+
+```powershell
+# API logs
+kubectl logs -l app.kubernetes.io/component=api -f
+
+# Nginx logs
+kubectl logs -l app.kubernetes.io/component=nginx -f
+
+# MongoDB logs
+kubectl logs -l app.kubernetes.io/component=mongodb -f
+```
+
+### Access MongoDB Shell
+
+```powershell
+kubectl exec -it realsense-pose-realsense-pose-helm-mongodb-0 -- mongosh -u root -p
+```
+
+### Restart Deployment
+
+```powershell
+kubectl rollout restart deployment -l app.kubernetes.io/instance=realsense-pose
+```
+
+## Troubleshooting
+
+### Pod not starting
+
+```powershell
+# Check pod status
+kubectl describe pod <pod-name>
+
+# Check events
+kubectl get events --sort-by='.lastTimestamp'
+```
+
+### 502 Bad Gateway
+
+1. Check if API pod is running: `kubectl get pods`
+2. Check API logs: `kubectl logs -l app.kubernetes.io/component=api`
+3. Verify service endpoints: `kubectl get endpoints`
+
+### Cannot connect to service
+
+1. For `ClusterIP`: Use port-forward
+2. For `LoadBalancer`: Wait for external IP assignment
+3. For `NodePort`: Use `kubectl get svc` to find the port
+
+### Database connection issues
+
+```powershell
+# Check MongoDB pod
+kubectl logs -l app.kubernetes.io/component=mongodb
+
+# Verify MongoDB is ready
+kubectl exec -it realsense-pose-realsense-pose-helm-mongodb-0 -- mongosh --eval "db.adminCommand('ping')"
+```
 
 ## Examples
 
@@ -167,26 +315,6 @@ api:
   auth:
     enabled: true
     clientSecrets: "client1=secret1,client2=secret2"
-```
-
-## Troubleshooting
-
-### Check pod status
-
-```bash
-kubectl get pods -l app.kubernetes.io/instance=realsense-pose
-```
-
-### View logs
-
-```bash
-kubectl logs -l app.kubernetes.io/instance=realsense-pose,app.kubernetes.io/component=api -f
-```
-
-### Access MongoDB shell
-
-```bash
-kubectl exec -it realsense-pose-mongodb-0 -- mongosh -u root -p
 ```
 
 ## License
