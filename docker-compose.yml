@@ -161,8 +161,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
     volumes:
-      - mongo_data:/data/db
-      - ${HOST_MONGO_BACKUP_DIR:-./backups/mongo}:/backups
+      # Use external path if specified, otherwise use Docker Volume
+      - ${HOST_MONGO_DIR:-mongo_data}:/data/db
     ports:
       - "${MONGO_PORT:-27015}:27017"
     networks:
@@ -176,8 +176,8 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - redis_data:/data
-      - ${HOST_REDIS_BACKUP_DIR:-./backups/redis}:/backups
+      # Use external path if specified, otherwise use Docker Volume
+      - ${HOST_REDIS_DIR:-redis_data}:/data
     command:
       - redis-server
       - --appendonly
@@ -191,6 +191,54 @@ services:
     networks:
       - backend
     logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Automatic Backup
+  # ---------------------------------------------------------------------------
+  backup:
+    image: alpine:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-realsense-pose}-backup
+    restart: unless-stopped
+    environment:
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      MAX_BACKUPS: ${MAX_BACKUPS:-7}
+      TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - ${HOST_MONGO_DIR:-mongo_data}:/data/mongo:ro
+      - ${HOST_REDIS_DIR:-redis_data}:/data/redis:ro
+      - ${HOST_BACKUP_DIR:-./backups}:/backups
+    command: >
+      sh -c '
+        apk add --no-cache tzdata dcron &&
+        cat > /usr/local/bin/backup.sh << "EOF"
+      #!/bin/sh
+      TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+      BACKUP_DIR="/backups/$$TIMESTAMP"
+      mkdir -p "$$BACKUP_DIR"
+      
+      echo "[$(date)] Starting backup..."
+      tar czf "$$BACKUP_DIR/mongo.tar.gz" -C /data/mongo . 2>/dev/null || echo "MongoDB backup skipped"
+      tar czf "$$BACKUP_DIR/redis.tar.gz" -C /data/redis . 2>/dev/null || echo "Redis backup skipped"
+      date > "$$BACKUP_DIR/backup_time.txt"
+      
+      # Clean old backups
+      cd /backups
+      ls -t | tail -n +$$((MAX_BACKUPS + 1)) | xargs -r rm -rf
+      
+      echo "[$(date)] Backup completed: $$BACKUP_DIR"
+      EOF
+        chmod +x /usr/local/bin/backup.sh &&
+        echo "[$(date)] Backup service started. Schedule: $$BACKUP_CRON" &&
+        echo "[$(date)] Running initial backup on startup..." &&
+        /usr/local/bin/backup.sh &&
+        echo "$$BACKUP_CRON /usr/local/bin/backup.sh" > /etc/crontabs/root &&
+        crond -f -l 2
+      '
+    networks:
+      - backend
+    logging: *default-logging
+    profiles:
+      - ${BACKUP_ENABLED:-1}
 
   # ---------------------------------------------------------------------------
   # Auto-Update
@@ -212,6 +260,8 @@ services:
       - --label-enable
       - --scope=realsense-pose
     logging: *default-logging
+    profiles:
+      - ${WATCHTOWER_ENABLED:-1}
 
 # -----------------------------------------------------------------------------
 # Networks

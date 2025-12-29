@@ -29,6 +29,73 @@ Key environment variables in `.env`:
 | `API_PORT` | 8100 | API server port |
 | `MONGO_ROOT_PASSWORD` | - | MongoDB password |
 | `IS_PROD` | 0 | Production mode |
+| `HOST_MONGO_DIR` | (empty) | MongoDB storage path (empty = Docker Volume) |
+| `HOST_REDIS_DIR` | (empty) | Redis storage path (empty = Docker Volume) |
+| `BACKUP_CRON` | 0 2 * * * | Backup schedule (2 AM daily) |
+| `MAX_BACKUPS` | 7 | Maximum backups to keep |
+
+### Database Storage Options
+
+**Option 1: Docker Volume (Default - Recommended)**
+```bash
+# Leave empty in .env (or don't set)
+# HOST_MONGO_DIR=
+# HOST_REDIS_DIR=
+```
+- Fast performance
+- Automatic management
+- Use `backup/` scripts for backup/restore
+
+**Option 2: External Path (For NAS/External Drive)**
+```bash
+# Set path in .env
+HOST_MONGO_DIR=D:\database\mongo
+HOST_REDIS_DIR=D:\database\redis
+```
+- Direct file access
+- Easy to backup entire directory
+- Slower on Windows/Mac
+
+### Automatic Backup
+
+Automatic backup is **enabled by default**. Configure in `.env`:
+
+```bash
+# Enable/disable automatic backup
+BACKUP_ENABLED=1          # 1 = enabled (default), 0 = disabled
+
+# Backup schedule (cron format)
+BACKUP_CRON=0 2 * * *     # Daily at 2 AM
+MAX_BACKUPS=7             # Keep 7 backups
+HOST_BACKUP_DIR=./backups
+```
+
+**Start services (backup runs automatically):**
+```bash
+docker compose up -d
+```
+
+**Disable automatic backup:**
+```bash
+# In .env
+BACKUP_ENABLED=0
+
+# Then restart
+docker compose up -d
+```
+
+**Features:**
+- Runs backup immediately on container startup
+- Then follows automatic schedule (cron)
+- Automatic cleanup of old backups
+- No Windows Task Scheduler needed
+
+**Manual trigger:**
+```bash
+docker exec realsense-pose-backup /usr/local/bin/backup.sh
+```
+
+See `scripts/backup/README.md` for detailed backup documentation.
 
 ## Development
 
