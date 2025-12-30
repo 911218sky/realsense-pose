@@ -94,36 +94,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.exception("Redis initialization failed in lifespan")
             raise
 
-        # Run database migrations
-        try:
-            from db.mongo.migration_runner import run_all_migrations
-            logger.info("Running database migrations...")
-            success = await run_all_migrations()
-            if success:
-                logger.info("✅ All migrations completed successfully")
-            else:
-                logger.warning("⚠️ Some migrations failed (non-fatal)")
-        except Exception as e:
-            logger.warning(f"Migration failed (non-fatal): {e}")
-            # Don't fail startup if migration fails
-
         yield
     finally:
-        # 關閉 Mongo
-        try:
-            if client is not None:
-                client.close()
-                logger.info("Mongo client closed (lifespan shutdown)")
-        except Exception:
-            logger.exception("Error while closing mongo client in lifespan")
-
-        # 關閉 Redis
+        # 關閉 Redis（先關閉 cache layer）
         try:
             if redis is not None:
-                await redis.close()
+                await redis.aclose()  # 使用 aclose() 而非 close()
                 logger.info("Redis client closed (lifespan shutdown)")
         except Exception:
             logger.exception("Error while closing redis client in lifespan")
+
+        # 關閉 Mongo（最後關閉，確保所有請求都完成）
+        try:
+            if client is not None:
+                client.close() 
+                logger.info("Mongo client cleanup (connection pool will auto-close)")
+        except Exception:
+            logger.exception("Error during mongo client cleanup in lifespan")
 
 
 app = FastAPI(
