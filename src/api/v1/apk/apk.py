@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 from cachetools import TTLCache
 
 from ...auth import require_signed_headers
-from ...config import GITHUB_API_URL
+from ...config import GITHUB_API_URL, GITHUB_API_PROXY_URL
 
 _EXT_TO_MEDIA_TYPE: dict[str, str] = {
     ".apk": "application/vnd.android.package-archive",
@@ -57,34 +57,42 @@ async def _fetch_github_release_assets() -> list[dict[str, Any]]:
         return _release_cache[_CACHE_KEY]
 
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                GITHUB_API_URL,
-                headers={"Accept": "application/vnd.github+json"},
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            data = response.json()
+        urls_to_try = [GITHUB_API_URL, GITHUB_API_PROXY_URL]
+        last_error = None
 
-            # 只保留符合模式的資產，並簡化資料結構
-            assets = [
-                {
-                    "name": asset["name"],
-                    "size": asset["size"],
-                    "download_url": asset["browser_download_url"],
-                    "mtime": int(datetime.fromisoformat(asset.get("updated_at", "").replace("Z", "+00:00")).timestamp())
-                    if asset.get("updated_at")
-                    else 0,
-                }
-                for asset in data.get("assets", [])
-                if any(pattern in asset["name"] for pattern in _ALLOWED_PATTERNS)
-            ]
+        for url in urls_to_try:
+            try:
+                response = await client.get(
+                    url,
+                    headers={"Accept": "application/vnd.github+json"},
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            _release_cache[_CACHE_KEY] = assets
-            return assets
+                # 只保留符合模式的資產，並簡化資料結構
+                assets = [
+                    {
+                        "name": asset["name"],
+                        "size": asset["size"],
+                        "download_url": asset["browser_download_url"],
+                        "mtime": int(datetime.fromisoformat(asset.get("updated_at", "").replace("Z", "+00:00")).timestamp())
+                        if asset.get("updated_at")
+                        else 0,
+                    }
+                    for asset in data.get("assets", [])
+                    if any(pattern in asset["name"] for pattern in _ALLOWED_PATTERNS)
+                ]
 
-        except Exception as e:
-            raise HTTPException(status_code=503, detail=f"Failed to fetch release: {str(e)}")
+                _release_cache[_CACHE_KEY] = assets
+                return assets
+
+            except Exception as e:
+                last_error = e
+                continue
+
+        # All URLs failed
+        raise HTTPException(status_code=503, detail=f"Failed to fetch release: {str(last_error)}")
 
 
 @router.get("", summary="List available installation files")
@@ -131,12 +139,36 @@ async def download_apk(file_path: str, proxy: bool = True) -> Union[StreamingRes
     async def stream_file():
         async with httpx.AsyncClient(
             follow_redirects=True,
-            timeout=httpx.Timeout(60.0, connect=10.0),
+            timeout=httpx.Timeout(30.0, connect=3.0),
         ) as client:
-            async with client.stream("GET", target_asset["download_url"]) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes(chunk_size=131072):  # 128KB chunks
-                    yield chunk
+            last_error = None
+            
+            # 嘗試原始下載 URL
+            try:
+                async with client.stream("GET", target_asset["download_url"]) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes(chunk_size=131072):  # 128KB chunks
+                        yield chunk
+                    return
+            except Exception as e:
+                last_error = e
+            
+            # 備用：使用代理 URL
+            proxy_download_url = target_asset["download_url"].replace(
+                "https://github.com/",
+                "https://github.sky1218.com/github/"
+            )
+            try:
+                async with client.stream("GET", proxy_download_url) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes(chunk_size=131072):  # 128KB chunks
+                        yield chunk
+                    return
+            except Exception as e:
+                last_error = e
+            
+            # 兩個 URL 都失敗
+            raise HTTPException(status_code=503, detail=f"Failed to download file: {str(last_error)}")
 
     fn = target_asset["name"]
     headers = {
