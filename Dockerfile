@@ -67,19 +67,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Runtime deps for opencv/mediapipe/realsense + ffmpeg (includes libx264 for H.264)
-RUN --mount=type=cache,target=/var/cache/apt \
+# Use shared cache to speed up apt operations across builds
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       libgl1 libglib2.0-0 libusb-1.0-0 ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
-# Copy venv from builder
+# Copy venv from builder (changes only when requirements.txt changes)
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy static files (least frequently changed first)
+# Copy static config files (rarely changes)
 COPY configs ./configs
+
+# Copy web UI (changes when frontend releases - separate layer for better cache)
 COPY --from=web-compressor /app/web ./web
 
-# Copy source code (most frequently changed last for better cache)
+# Copy source code (changes most frequently - put last for optimal cache hits)
 COPY src ./src
 
 EXPOSE 8100
