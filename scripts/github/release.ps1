@@ -191,8 +191,9 @@ else {
         exit 1
     }
     
-    # Determine ref to use
-    $ref = if ($tagExists) { $tag } else { "main" }
+    # Determine ref to use (current branch if tag doesn't exist)
+    $currentBranch = git branch --show-current
+    $ref = if ($tagExists) { $tag } else { $currentBranch }
     
     Write-Host "Triggering $workflowName workflow on ref: $ref" -ForegroundColor Cyan
     
