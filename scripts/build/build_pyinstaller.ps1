@@ -1,4 +1,4 @@
-. (Join-Path $PSScriptRoot '..\_common.ps1')
+. (Join-Path $PSScriptRoot '..\common.ps1')
 
 $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
 
