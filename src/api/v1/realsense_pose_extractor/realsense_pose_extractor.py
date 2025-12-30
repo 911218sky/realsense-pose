@@ -290,16 +290,23 @@ async def get_session_video(
         chunk_size = end - start + 1
         
         async def iter_file_range():
-            async with aiofiles.open(video_file, "rb") as f:
-                await f.seek(start)
-                remaining = chunk_size
-                while remaining > 0:
-                    read_size = min(8192, remaining)
-                    data = await f.read(read_size)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
+            try:
+                async with aiofiles.open(video_file, "rb") as f:
+                    await f.seek(start)
+                    remaining = chunk_size
+                    while remaining > 0:
+                        read_size = min(1048576, remaining)  # 1MB chunk size
+                        data = await f.read(read_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+            except asyncio.CancelledError:
+                # 客戶端取消請求，正常結束
+                return
+            except GeneratorExit:
+                # Generator 被關閉，正常結束
+                return
         
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",
@@ -317,9 +324,14 @@ async def get_session_video(
     
     # 沒有 Range Request，回傳完整檔案
     async def iter_full_file():
-        async with aiofiles.open(video_file, "rb") as f:
-            while chunk := await f.read(8192):
-                yield chunk
+        try:
+            async with aiofiles.open(video_file, "rb") as f:
+                while chunk := await f.read(1048576):  # 1MB chunk size
+                    yield chunk
+        except asyncio.CancelledError:
+            return
+        except GeneratorExit:
+            return
     
     headers = {
         "Accept-Ranges": "bytes",
