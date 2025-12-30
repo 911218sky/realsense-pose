@@ -1,15 +1,13 @@
 # Git Commit Guidelines
 
-## Commit Message Language
+## 🌐 Language
 
-All commit messages MUST be written in **English** to ensure:
-- International team collaboration
-- Consistent and professional git history
-- Easy understanding for future maintainers
+All commit messages **MUST** be in **English** for:
+- 🤝 International team collaboration
+- 📜 Consistent and professional git history
+- 🔍 Easy understanding for future maintainers
 
-## Commit Message Format
-
-Use conventional commit format:
+## 📝 Format
 
 ```
 <type>(<scope>): <short description>
@@ -17,17 +15,21 @@ Use conventional commit format:
 [optional body with more details]
 ```
 
-### Types
-- `feat`: New feature
-- `fix`: Bug fix
-- `refactor`: Code refactoring (no functional change)
-- `docs`: Documentation changes
-- `style`: Code style/formatting changes
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `chore`: Build process, dependencies, or tooling changes
+## 🏷️ Commit Types
 
-### Examples
+| Type | Emoji | Description |
+|------|-------|-------------|
+| `feat` | ✨ | New feature |
+| `fix` | 🐛 | Bug fix |
+| `refactor` | ♻️ | Code refactoring (no functional change) |
+| `docs` | 📝 | Documentation changes |
+| `style` | 💄 | Code style/formatting changes |
+| `perf` | ⚡ | Performance improvements |
+| `test` | ✅ | Adding or updating tests |
+| `chore` | 🔧 | Build process, dependencies, or tooling |
+| `ci` | 👷 | CI/CD configuration changes |
+
+## 📋 Examples
 
 ```
 feat(video): add H.264 encoding support with FFmpeg fallback
@@ -45,10 +47,12 @@ fix(api): resolve session deletion not removing video files
 refactor(processor): extract video codec selection logic
 ```
 
-## Rules
+## ✅ Rules
 
-1. First line should be under 72 characters
-2. Use imperative mood ("add" not "added", "fix" not "fixed")
-3. No period at the end of the subject line
-4. Separate subject from body with a blank line
-5. Body should explain WHAT and WHY, not HOW
+| # | Rule |
+|---|------|
+| 1 | First line under 72 characters |
+| 2 | Use imperative mood ("add" not "added") |
+| 3 | No period at end of subject line |
+| 4 | Blank line between subject and body |
+| 5 | Body explains WHAT and WHY, not HOW |
