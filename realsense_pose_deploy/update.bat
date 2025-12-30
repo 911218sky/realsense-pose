@@ -57,7 +57,7 @@ if errorlevel 1 (
   echo You can run it manually later: fix_database.bat
 ) else (
   echo Running database fixes...
-  docker exec realsense-pose-api python -m src.db.mongo.migration_runner
+  docker exec -w /app/src realsense-pose-api python -m db.mongo.migration_runner
   if errorlevel 1 (
     echo [WARNING] Database migration failed. You may need to run fix_database.bat manually.
   ) else (

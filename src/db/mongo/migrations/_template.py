@@ -10,8 +10,8 @@ Author: [Your Name]
 
 from typing import Dict
 
-from src.db.mongo.models import RealsensePoseExtractor  # Import your models
-from src.logger import setup_logger
+from db.mongo.models import RealsensePoseExtractor  # Import your models
+from logger import setup_logger
 
 logger = setup_logger(__name__)
 

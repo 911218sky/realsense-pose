@@ -11,8 +11,8 @@ Date: 2024-12-30
 from collections import defaultdict
 from typing import Dict, List
 
-from src.db.mongo.models import RealsensePoseExtractor
-from src.logger import setup_logger
+from db.mongo.models import RealsensePoseExtractor
+from logger import setup_logger
 
 logger = setup_logger(__name__)
 
