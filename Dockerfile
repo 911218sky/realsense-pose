@@ -66,11 +66,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Runtime deps for opencv/mediapipe/realsense
+# Runtime deps for opencv/mediapipe/realsense + ffmpeg
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-      libgl1 libglib2.0-0 libusb-1.0-0 \
+      libgl1 libglib2.0-0 libusb-1.0-0 ffmpeg curl bzip2 \
  && rm -rf /var/lib/apt/lists/*
+
+# Download OpenH264 for H.264 encoding
+RUN curl -fsSL http://ciscobinary.openh264.org/libopenh264-2.4.1-linux64.8.so.bz2 \
+    | bunzip2 > /usr/lib/x86_64-linux-gnu/libopenh264.so.7 \
+ && ldconfig
 
 # Copy venv from builder
 COPY --from=builder /opt/venv /opt/venv

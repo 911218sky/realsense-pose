@@ -7,8 +7,9 @@ from typing import Dict, List, Optional, Union
 
 from bson import ObjectId
 from fastapi import APIRouter, Body, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, StreamingResponse
 
-from api.config import BAG_DIR, NPY_DIR
+from api.config import BAG_DIR, NPY_DIR, VIDEO_DIR
 from config import load_config
 from db import RealsenseExtractJob, RealsensePoseExtractor, UserProfile
 from logger import setup_logger
@@ -37,6 +38,12 @@ default_config = load_config(mode="pose")
 router = APIRouter(
     prefix="/realsense_pose_extractor",
     tags=["realsense_pose_extractor"]
+)
+
+# 公開路由 - 用於影片串流
+public_router = APIRouter(
+    prefix="/realsense_pose_extractor",
+    tags=["realsense_pose_extractor_public"]
 )
 
 router.include_router(bags_router)
@@ -149,6 +156,7 @@ async def list_realsense_pose_sessions(
         RealsensePoseExtractorItem(
             session_name=doc.session_name,
             npy_path=doc.npy_path,
+            video_path=doc.video_path,
             bag_path=doc.bag_path,
             bag_hash=doc.bag_hash,
             created_at=doc.created_at,
@@ -222,6 +230,110 @@ async def _safe_unlink_if_allowed(
     return True
 
 
+@public_router.get("/sessions/{session_name}/video")
+async def get_session_video(
+    session_name: str,
+    request: Request,
+):
+    """
+    取得指定 session 的影片檔案（串流播放，支援 Range Requests）。
+    
+    - 檢查 DB 是否有該 session
+    - 檢查是否有 video_path 且檔案存在
+    - 支援 HTTP Range Requests（讓瀏覽器可以 seek）
+    - 回傳影片檔案供前端播放
+    """
+    doc: Optional[RealsensePoseExtractor] = await RealsensePoseExtractor.find_one(
+        RealsensePoseExtractor.session_name == session_name
+    )
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"session not found: {session_name}")
+    
+    if not doc.video_path:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"video not available for session: {session_name} (video was not generated during extraction)"
+        )
+    
+    video_file = Path(doc.video_path)
+    
+    # 安全檢查：確保檔案在允許的目錄內
+    try:
+        video_file_resolved = video_file.resolve()
+        video_dir_resolved = Path(VIDEO_DIR).resolve()
+        if video_dir_resolved not in video_file_resolved.parents and video_file_resolved.parent != video_dir_resolved:
+            raise HTTPException(status_code=403, detail="access denied: invalid video path")
+    except Exception:
+        raise HTTPException(status_code=500, detail="failed to resolve video path")
+    
+    if not video_file.exists():
+        raise HTTPException(
+            status_code=404, 
+            detail=f"video file not found: {session_name} (file may have been deleted)"
+        )
+    
+    # 取得檔案大小
+    file_size = video_file.stat().st_size
+    
+    # 處理 Range Request
+    range_header = request.headers.get("range")
+    
+    if range_header:
+        # 解析 Range header (格式: "bytes=start-end")
+        range_match = range_header.replace("bytes=", "").split("-")
+        start = int(range_match[0]) if range_match[0] else 0
+        end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
+        end = min(end, file_size - 1)
+        
+        # 讀取指定範圍的資料
+        chunk_size = end - start + 1
+        
+        def iter_file():
+            with open(video_file, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    read_size = min(8192, remaining)
+                    data = f.read(read_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+        
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(chunk_size),
+            "Content-Type": "video/mp4",
+        }
+        
+        return StreamingResponse(
+            iter_file(),
+            status_code=206,  # Partial Content
+            headers=headers,
+        )
+    
+    # 沒有 Range Request，回傳完整檔案
+    def iter_full_file():
+        with open(video_file, "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+    
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+        "Content-Type": "video/mp4",
+        "Cache-Control": "public, max-age=3600",
+    }
+    
+    return StreamingResponse(
+        iter_full_file(),
+        headers=headers,
+        media_type="video/mp4",
+    )
+
+
 @router.delete("/sessions/{session_name}", response_model=DeleteSessionResponse)
 async def delete_realsense_pose_session(
     session_name: str,
@@ -230,6 +342,7 @@ async def delete_realsense_pose_session(
     刪除指定 session：
     - 刪除 DB 紀錄
     - 會嘗試刪除對應的 npy 檔
+    - 會嘗試刪除對應的 video 檔（若有）
     - bag 檔只有在沒有其他 session 使用相同 bag_hash 時才會刪
     """
     doc: Optional[RealsensePoseExtractor] = await RealsensePoseExtractor.find_one(
@@ -239,6 +352,7 @@ async def delete_realsense_pose_session(
         raise HTTPException(status_code=404, detail=f"session not found: {session_name}")
 
     deleted_npy = False
+    deleted_video = False
     deleted_bag = False
 
     # npy：通常每個 session 都是獨立的檔案
@@ -250,6 +364,16 @@ async def delete_realsense_pose_session(
     except Exception:
         # 保持與舊行為一致：刪檔失敗不影響刪 DB
         pass
+
+    # video：每個 session 獨立的影片檔
+    if doc.video_path:
+        try:
+            deleted_video = await _safe_unlink_if_allowed(
+                Path(doc.video_path),
+                allowed_base_dir=Path(VIDEO_DIR),
+            )
+        except Exception:
+            pass
 
     # bag：可能被多個 session 共用（依 bag_hash），避免誤刪
     try:

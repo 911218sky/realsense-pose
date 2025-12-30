@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
-from api.config import BAG_DIR, HOST_DATASET_DIR, NPY_DIR
+from api.config import BAG_DIR, HOST_DATASET_DIR, NPY_DIR, VIDEO_DIR
 from api.utils.bag_path_resolver import resolve_bag_path
 from db import RealsensePoseExtractor, UserProfile
 from realsense_pose_extractor.subprocess_runner import run_process_bag_in_subprocess
@@ -21,6 +21,7 @@ async def save_paths_to_db(
     session_name: str,
     user_code: Optional[str] = None,
     npy_path: str,
+    video_path: Optional[str] = None,
     bag_path: str,
     bag_hash: str,
 ) -> None:
@@ -32,6 +33,7 @@ async def save_paths_to_db(
         if user_code:
             existing.user_code = user_code
         existing.npy_path = npy_path
+        existing.video_path = video_path
         existing.bag_path = bag_path
         existing.bag_hash = bag_hash
         existing.updated_at = datetime.now()
@@ -41,6 +43,7 @@ async def save_paths_to_db(
             session_name=session_name,
             user_code=user_code,
             npy_path=npy_path,
+            video_path=video_path,
             bag_path=bag_path,
             bag_hash=bag_hash,
             updated_at=datetime.now(),
@@ -182,13 +185,25 @@ async def run_extraction_pipeline(
         )
 
     npy_path = Path(NPY_DIR) / f"{session_name}.npy"
-
+    
     cfg: Dict[str, Any] = {**default_config, **(config_dict or {})}
+    save_video = cfg.get("save_video", False)
+    
+    # 若啟用影片輸出，準備影片路徑（使用相對路徑，與 npy 一致）
+    video_path: Optional[Path] = None
+    output_video_filename: Optional[str] = None
+    if save_video:
+        from api.config import VIDEO_DIR
+        video_path = Path(VIDEO_DIR) / f"{session_name}.mp4"
+        # 傳入相對路徑（如 data/video/xxx.mp4），_resolve_output_path 會保持原樣
+        output_video_filename = str(video_path)
+
     # 在獨立子進程中執行，確保每次處理後資源完全釋放
     await asyncio.to_thread(
         run_process_bag_in_subprocess,
         bag_file_path=str(bag_path_to_use),
         output_npy_path=str(npy_path),
+        output_video_filename=output_video_filename,
         timeout_s=60*20,  # 每個檔案最多 20 分鐘
         skip_frames=cfg.get("skip_frames", 0),
         max_frames=cfg.get("max_frames", 10800),
@@ -200,7 +215,7 @@ async def run_extraction_pipeline(
         y_axis_up=cfg.get("y_axis_up", False),
         save_npy=True,
         save_pickle=False,
-        save_video=False,
+        save_video=save_video,
     )
 
     # 保存 npy 和 bag 檔案路徑到 DB
@@ -208,6 +223,7 @@ async def run_extraction_pipeline(
         session_name=session_name,
         user_code=user_code,
         npy_path=str(npy_path),
+        video_path=str(video_path) if (video_path and video_path.exists()) else None,
         bag_path=str(bag_path_to_use),
         bag_hash=bag_hash,
     )
@@ -215,6 +231,7 @@ async def run_extraction_pipeline(
     return ExtractResponse(
         bag_path=str(bag_path_to_use),
         npy_path=str(npy_path),
+        video_path=str(video_path) if (video_path and video_path.exists()) else None,
         session_name=session_name,
         bag_hash=bag_hash,
         success=True,

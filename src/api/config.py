@@ -4,9 +4,11 @@ from pathlib import Path
 DATA_DIR = Path("./data")
 NPY_DIR = DATA_DIR / "npy"
 BAG_DIR = DATA_DIR / "bag"
+VIDEO_DIR = DATA_DIR / "video"
 
 NPY_DIR.mkdir(parents=True, exist_ok=True)
 BAG_DIR.mkdir(parents=True, exist_ok=True)
+VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 # Container-side dataset mount path (default: docker-compose mounts host dataset to /app/dataset)
 DATASET_DIR = Path((os.getenv("DATASET_DIR") or "").strip() or "/app/dataset")

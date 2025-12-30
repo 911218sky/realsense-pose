@@ -33,6 +33,7 @@ from .v1 import (
     rehab_analyzer_router,
     users_router,
     realsense_pose_extractor_router,
+    realsense_pose_extractor_public_router,
     apk_router,
 )
 
@@ -183,6 +184,13 @@ app.include_router(
     prefix=PREFIX,
     dependencies=[Depends(require_signed_headers), Depends(require_admin)],
     tags=[PREFIX.replace("/", "")],
+)
+
+# 公開路由：影片串流（不需要認證）
+app.include_router(
+    realsense_pose_extractor_public_router,
+    prefix=PREFIX,
+    tags=["public"],
 )
 
 app.include_router(

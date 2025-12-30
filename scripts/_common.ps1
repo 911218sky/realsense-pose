@@ -88,6 +88,37 @@ function Invoke-CondaRun {
     [Parameter(Mandatory)]
     [string[]] $Args
   )
+  
+  # Use Python -m for conda environments (avoids canonicalization issues)
+  $pythonExe = Join-Path $VenvPath 'python.exe'
+  if (Test-Path $pythonExe) {
+    # Convert common commands to -m module format
+    $moduleMap = @{
+      'uvicorn' = 'uvicorn'
+      'pytest' = 'pytest'
+      'pip' = 'pip'
+      'black' = 'black'
+      'flake8' = 'flake8'
+      'mypy' = 'mypy'
+    }
+    
+    $cmd = $Args[0]
+    if ($moduleMap.ContainsKey($cmd)) {
+      $moduleArgs = @('-m', $moduleMap[$cmd]) + $Args[1..($Args.Length - 1)]
+      & $pythonExe @moduleArgs
+      if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($moduleArgs -join ' ')" }
+      return
+    }
+    
+    # If first arg is already -m or a .py file, use python directly
+    if ($Args[0] -eq '-m' -or $Args[0] -match '\.(py|pyw)$') {
+      & $pythonExe @Args
+      if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($Args -join ' ')" }
+      return
+    }
+  }
+  
+  # Fallback to conda run
   & conda run --live-stream -p $VenvPath @Args
   if ($LASTEXITCODE -ne 0) { throw "Command failed: conda run -p `"$VenvPath`" $($Args -join ' ')" }
 }

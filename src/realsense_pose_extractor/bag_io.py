@@ -79,6 +79,7 @@ class OutputMixin:
         if not path.is_absolute() and str(path.parent) in ("", "."):
             path = self.output_dir / path
         return path
+    
     def _save_results(
         self,
         camera_coordinate_list: np.ndarray,

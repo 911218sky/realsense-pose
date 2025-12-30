@@ -10,7 +10,20 @@ from fastapi.encoders import jsonable_encoder
 from logger import setup_logger
 
 logger = setup_logger("api.utils.cache")
-USE_REDIS_CACHE = os.getenv("USE_REDIS_CACHE", "").lower() in {"1", "true", "on", "yes"}
+
+# 快取控制：
+# 1. 若 IS_PROD=0（開發模式），強制關閉快取
+# 2. 若 IS_PROD=1（生產模式），依 USE_REDIS_CACHE 設定決定
+IS_PROD = os.getenv("IS_PROD", "0").lower() in {"1", "true", "on", "yes"}
+USE_REDIS_CACHE_ENV = os.getenv("USE_REDIS_CACHE", "").lower() in {"1", "true", "on", "yes"}
+USE_REDIS_CACHE = IS_PROD and USE_REDIS_CACHE_ENV
+
+if not IS_PROD:
+    logger.info("Development mode (IS_PROD=0): Redis cache is disabled")
+elif not USE_REDIS_CACHE_ENV:
+    logger.info("Production mode but USE_REDIS_CACHE not enabled: Redis cache is disabled")
+else:
+    logger.info("Production mode with USE_REDIS_CACHE enabled: Redis cache is active")
 
 def redis_cache(
     expire: int = 30,

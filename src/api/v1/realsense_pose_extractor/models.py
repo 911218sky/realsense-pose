@@ -17,6 +17,7 @@ class ExtractRequest(BaseModel):
     min_tracking_confidence: float = Field(0.5, description="追蹤最小信心分數。")
     calibrate_pose: bool = Field(True, description="是否執行姿勢校正。")
     y_axis_up: bool = Field(True, description="若為 True，輸出座標會把 y 軸翻轉成向上為正（更直覺好解讀）。")
+    save_video: bool = Field(True, description="是否匯出帶有骨架標註的影片檔。")
 
 
 # ---------- Response models ----------
@@ -26,6 +27,7 @@ class ExtractResponse(BaseModel):
 
     bag_path: str = Field(..., description="原始 .bag 檔路徑。")
     npy_path: str = Field(..., description="輸出的關節序列檔路徑。")
+    video_path: Optional[str] = Field(None, description="輸出的影片檔路徑（若有啟用 save_video）。")
     session_name: str = Field(..., description="此處理任務的 session 名稱。")
     bag_hash: Optional[str] = Field(None, description=".bag 內容 hash（去重用）。")
     success: bool = Field(..., description="是否提取成功。")
@@ -58,6 +60,7 @@ class RealsensePoseExtractorItem(BaseModel):
 
     session_name: str = Field(..., description="Session 名稱。")
     npy_path: str = Field(..., description="輸出 npy 路徑。")
+    video_path: Optional[str] = Field(None, description="輸出影片路徑（若有）。")
     bag_path: str = Field(..., description="來源 bag 路徑。")
     bag_hash: Optional[str] = Field(None, description="bag 內容 hash。")
     created_at: datetime = Field(..., description="建立時間。")

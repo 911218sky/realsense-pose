@@ -18,7 +18,7 @@ from utils.npy_calibration import CalibrationConfig, PoseNpyCalibrator
 from .bag_io import BagIOMixin, OutputMixin
 from .pipeline import TimeTrackingMixin, PipelineMixin
 from .pose_ops import PoseOpsMixin
-from .video_overlay import VideoOverlayMixin
+from .video_overlay import VideoOverlayMixin, FFmpegConverter
 
 class PoseProcessor(
     BagIOMixin,
@@ -90,6 +90,8 @@ class PoseProcessor(
         output_npy_filename: Optional[str] = None,
         output_pickle_filename: Optional[str] = None,
         output_video_filename: Optional[str] = None,
+        # 影片編碼格式：h264（推薦，瀏覽器支援好）、mp4v、xvid、mjpg、auto
+        video_codec: str = "auto",
         # 深度門檻：避免誤取到遠處背景深度造成 3D 座標爆掉（例如 z=20m）
         min_depth_m: float = 0.1,
         max_depth_m: Optional[float] = 8.0,
@@ -122,7 +124,8 @@ class PoseProcessor(
 
         start_time = time.time()
         max_recent_time = 1
-        recent_frames = deque(maxlen=1024) 
+        recent_frames = deque(maxlen=1024)
+        video_path = None  # 初始化影片路徑變數
 
         try:
             # Force gc before init to help release lingering pyrealsense2 resources.
@@ -150,12 +153,16 @@ class PoseProcessor(
                         filename=Path(self.bag_file_path).stem
                     )
 
-                video_path = self.output_dir / output_video_filename
+                video_path = self._resolve_output_path(
+                    output_video_filename, 
+                    f"{self.prefix}_{Path(self.bag_file_path).stem}.mp4"
+                )
                 writer = self._init_video_writer(
                     width=self.width,
                     height=self.height,
                     video_path=str(video_path),
                     eff_fps=eff_fps,
+                    codec=video_codec,
                 )
 
             # MediaPipe Pose
@@ -363,10 +370,17 @@ class PoseProcessor(
                 except Exception as e:
                     self.logger.warning(f"Failed to release VideoWriter: {e}")
 
-                if save_video and output_video_filename is not None:
-                    self.logger.info(
-                        f"Overlay video saved to: {output_video_filename}"
-                    )
+                if save_video and video_path is not None:
+                    self.logger.info(f"Overlay video saved to: {video_path}")
+                    
+                    # 嘗試用 FFmpeg 轉換為 H.264（瀏覽器相容）
+                    if FFmpegConverter.convert_to_h264(str(video_path)):
+                        self.logger.info(f"Video converted to H.264: {video_path}")
+                    else:
+                        self.logger.warning(
+                            f"FFmpeg not available or conversion failed. "
+                            f"Video may not play in browser: {video_path}"
+                        )
 
             # 釋放管道（更激進地清理，避免 Windows 上資源殘留導致 N 次後卡死）
             if pipeline is not None:

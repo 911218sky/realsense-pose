@@ -10,8 +10,9 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
     volumes:
-      - mongo_data:/data/db
-      - ${HOST_MONGO_BACKUP_DIR:-./backups/mongo}:/backups
+      # 若設定 HOST_MONGO_DIR，會掛載到外部目錄；否則使用 Docker volume
+      - ${HOST_MONGO_DIR:-mongo_data}:/data/db
+      - ${HOST_BACKUP_DIR:-./backups}/mongo:/backups
     ports:
       # Keep host port 27015 to match existing defaults in code/scripts
       - "${MONGO_PORT:-27015}:27017"
@@ -28,8 +29,9 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - redis_data:/data
-      - ${HOST_REDIS_BACKUP_DIR:-./backups/redis}:/backups
+      # 若設定 HOST_REDIS_DIR，會掛載到外部目錄；否則使用 Docker volume
+      - ${HOST_REDIS_DIR:-redis_data}:/data
+      - ${HOST_BACKUP_DIR:-./backups}/redis:/backups
     command: ["redis-server", "--appendonly", "yes", "--dir", "/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -38,6 +40,7 @@ services:
       retries: 30
 
 volumes:
+  # 當未設定 HOST_MONGO_DIR / HOST_REDIS_DIR 時，會使用這些 named volumes
   mongo_data:
     name: realsense-pose-mongo-data
   redis_data:
