@@ -41,7 +41,7 @@ echo.
 REM Run migration script inside container
 echo [INFO] Running database migrations...
 echo.
-docker exec realsense-pose-api python -m db.mongo.migration_runner
+docker exec realsense-pose-api python -m src.db.mongo.migration_runner
 
 if errorlevel 1 (
     echo.
