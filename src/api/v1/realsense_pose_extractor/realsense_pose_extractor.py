@@ -280,33 +280,57 @@ async def get_session_video(
     # 處理 Range Request
     range_header = request.headers.get("range")
     
+    async def create_file_iterator(start: int, length: int):
+        """建立檔案迭代器，處理各種中斷情況"""
+        f = None
+        try:
+            f = await aiofiles.open(video_file, "rb")
+            await f.seek(start)
+            remaining = length
+            while remaining > 0:
+                # 檢查客戶端是否已斷線
+                if await request.is_disconnected():
+                    break
+                read_size = min(1048576, remaining)  # 1MB chunk
+                data = await f.read(read_size)
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+        except (asyncio.CancelledError, GeneratorExit):
+            # 客戶端取消或 generator 關閉，正常結束
+            pass
+        except ConnectionResetError:
+            # 連線被重置
+            pass
+        except BrokenPipeError:
+            # 管道中斷
+            pass
+        except Exception:
+            # 其他錯誤也要確保資源釋放
+            pass
+        finally:
+            if f is not None:
+                try:
+                    await f.close()
+                except Exception:
+                    pass
+    
     if range_header:
         # 解析 Range header (格式: "bytes=start-end")
-        range_match = range_header.replace("bytes=", "").split("-")
-        start = int(range_match[0]) if range_match[0] else 0
-        end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
-        end = min(end, file_size - 1)
+        try:
+            range_match = range_header.replace("bytes=", "").split("-")
+            start = int(range_match[0]) if range_match[0] else 0
+            end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
+            end = min(end, file_size - 1)
+            start = max(0, min(start, file_size - 1))
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=416, detail="Invalid Range header")
+        
+        if start > end:
+            raise HTTPException(status_code=416, detail="Range Not Satisfiable")
         
         chunk_size = end - start + 1
-        
-        async def iter_file_range():
-            try:
-                async with aiofiles.open(video_file, "rb") as f:
-                    await f.seek(start)
-                    remaining = chunk_size
-                    while remaining > 0:
-                        read_size = min(1048576, remaining)  # 1MB chunk size
-                        data = await f.read(read_size)
-                        if not data:
-                            break
-                        remaining -= len(data)
-                        yield data
-            except asyncio.CancelledError:
-                # 客戶端取消請求，正常結束
-                return
-            except GeneratorExit:
-                # Generator 被關閉，正常結束
-                return
         
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",
@@ -316,23 +340,12 @@ async def get_session_video(
         }
         
         return StreamingResponse(
-            iter_file_range(),
-            # Partial Content
+            create_file_iterator(start, chunk_size),
             status_code=206,
             headers=headers,
         )
     
     # 沒有 Range Request，回傳完整檔案
-    async def iter_full_file():
-        try:
-            async with aiofiles.open(video_file, "rb") as f:
-                while chunk := await f.read(1048576):  # 1MB chunk size
-                    yield chunk
-        except asyncio.CancelledError:
-            return
-        except GeneratorExit:
-            return
-    
     headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(file_size),
@@ -341,7 +354,7 @@ async def get_session_video(
     }
     
     return StreamingResponse(
-        iter_full_file(),
+        create_file_iterator(0, file_size),
         headers=headers,
         media_type="video/mp4",
     )
