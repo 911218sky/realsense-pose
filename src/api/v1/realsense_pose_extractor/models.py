@@ -26,6 +26,7 @@ class ExtractResponse(BaseModel):
     """提取結果回傳。"""
 
     bag_path: str = Field(..., description="原始 .bag 檔路徑。")
+    bag_filename: str = Field(..., description="BAG 檔案名稱（例如：1_1_607.bag）。")
     npy_path: str = Field(..., description="輸出的關節序列檔路徑。")
     video_path: Optional[str] = Field(None, description="輸出的影片檔路徑（若有啟用 save_video）。")
     session_name: str = Field(..., description="此處理任務的 session 名稱。")
@@ -62,6 +63,7 @@ class RealsensePoseExtractorItem(BaseModel):
     npy_path: str = Field(..., description="輸出 npy 路徑。")
     video_path: Optional[str] = Field(None, description="輸出影片路徑（若有）。")
     bag_path: str = Field(..., description="來源 bag 路徑。")
+    bag_filename: str = Field(..., description="BAG 檔案名稱（例如：1_1_607.bag）。")
     bag_hash: Optional[str] = Field(None, description="bag 內容 hash。")
     created_at: datetime = Field(..., description="建立時間。")
     updated_at: datetime = Field(..., description="更新時間。")
@@ -90,6 +92,15 @@ class DeleteSessionResponse(BaseModel):
     deleted_db: bool = Field(..., description="是否已刪除 DB 紀錄。")
     deleted_npy: bool = Field(..., description="是否已刪除 npy 檔案。")
     deleted_bag: bool = Field(..., description="是否已刪除 bag 檔案。")
+
+
+class VideoAvailabilityResponse(BaseModel):
+    """檢查 session 影片可用性的回傳。"""
+
+    session_name: str = Field(..., description="Session 名稱。")
+    has_video: bool = Field(..., description="是否有影片檔案。")
+    video_exists: bool = Field(..., description="影片檔案是否實際存在於磁碟上。")
+    video_path: Optional[str] = Field(None, description="影片檔案路徑（若有）。")
 
 
 # ---------- Bag list models ----------

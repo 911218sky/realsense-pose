@@ -110,7 +110,7 @@ class UserProfile(Document):
         collection = "user_profile"
         indexes = [
             IndexModel([("user_code", ASCENDING)], unique=True),
-            IndexModel([("name", ASCENDING)]),
+            IndexModel([("name", ASCENDING)], unique=True, name="uq_name"),
             IndexModel([("created_at", ASCENDING)]),
         ]
 

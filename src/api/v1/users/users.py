@@ -17,6 +17,8 @@ from db import (
 
 from .models import (
     DeleteUserResponse,
+    FindUserByBagRequest,
+    FindUserByBagResponse,
     LinkSessionRequest,
     UnlinkSessionRequest,
     UnlinkSessionResponse,
@@ -61,6 +63,7 @@ def _to_session_item(doc: RealsensePoseExtractor) -> UserSessionItem:
         user_code=doc.user_code,
         npy_path=doc.npy_path,
         bag_path=doc.bag_path,
+        bag_filename=doc.bag_filename,
         bag_hash=doc.bag_hash,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
@@ -99,6 +102,7 @@ async def create_user(payload: UserCreateRequest) -> UserItem:
 
     - 若 payload.user_code 沒提供，DB 端會自動產生 UUID 字串
     - user_code 重複時回 409（Conflict）
+    - name 重複時回 409（Conflict）
     """
     data = payload.model_dump(exclude_unset=True)
 
@@ -106,7 +110,11 @@ async def create_user(payload: UserCreateRequest) -> UserItem:
         doc = UserProfile(**data)
         await doc.insert()
         return _to_user_item(doc)
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
+        # 判斷是 user_code 還是 name 重複
+        error_msg = str(e)
+        if "uq_name" in error_msg or "name" in error_msg:
+            raise HTTPException(status_code=409, detail="name already exists") from None
         raise HTTPException(status_code=409, detail="user_code already exists") from None
 
 
@@ -203,6 +211,71 @@ async def search_user_names(
     )
 
 
+@router.post("/find-by-bag", response_model=FindUserByBagResponse)
+async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagResponse:
+    """透過 BAG 檔案名稱尋找使用者。
+
+    - 使用 bag_filename 精確比對，找出所有使用此 BAG 檔案的 sessions
+    - 由於一個 bag 只能綁定一個使用者，最多只會找到一個使用者
+    - 使用索引優化查詢效能
+    """
+    # 優化查詢：先找有綁定使用者的 session（利用索引）
+    first_session_with_user: Optional[RealsensePoseExtractor] = await (
+        RealsensePoseExtractor.find(
+            RealsensePoseExtractor.bag_filename == payload.bag_filename,
+            RealsensePoseExtractor.user_code != None,
+        )
+        .sort(-RealsensePoseExtractor.created_at)
+        .first_or_none()
+    )
+
+    # 若沒有綁定使用者的 session，查詢所有 sessions（含未綁定的）
+    if not first_session_with_user:
+        all_sessions: List[RealsensePoseExtractor] = await (
+            RealsensePoseExtractor.find(
+                RealsensePoseExtractor.bag_filename == payload.bag_filename
+            )
+            .to_list()
+        )
+        return FindUserByBagResponse(
+            found=False,
+            user=None,
+            sessions=[_to_session_item(s) for s in all_sessions],
+            total_sessions=len(all_sessions),
+        )
+
+    # 找到綁定的使用者，取得完整資料
+    user_code = first_session_with_user.user_code
+    user: Optional[UserProfile] = await UserProfile.find_one(
+        UserProfile.user_code == user_code
+    )
+
+    if not user:
+        # 資料一致性問題：session 有 user_code 但找不到對應的 user
+        return FindUserByBagResponse(
+            found=False,
+            user=None,
+            sessions=[_to_session_item(first_session_with_user)],
+            total_sessions=1,
+        )
+
+    # 取得該使用者的所有 sessions（不限於這個 BAG 檔案）
+    all_user_sessions: List[RealsensePoseExtractor] = await (
+        RealsensePoseExtractor.find(
+            RealsensePoseExtractor.user_code == user_code,
+        )
+        .sort(-RealsensePoseExtractor.created_at)
+        .to_list()
+    )
+    
+    return FindUserByBagResponse(
+        found=True,
+        user=_to_user_item(user),
+        sessions=[_to_session_item(s) for s in all_user_sessions],
+        total_sessions=len(all_user_sessions),
+    )
+
+
 @router.get("/{user_code}", response_model=UserDetailResponse)
 async def get_user_detail(user_code: str) -> UserDetailResponse:
     """取得使用者 + 其綁定的 sessions(bag) 列表。"""
@@ -254,7 +327,15 @@ async def update_user(user_code: str, payload: UserUpdateRequest) -> UserItem:
 
     # 手動更新 updated_at（created_at/updated_at 目前是我們自管，而不是 DB trigger）
     user.updated_at = datetime.now()
-    await user.save()
+    
+    try:
+        await user.save()
+    except DuplicateKeyError as e:
+        error_msg = str(e)
+        if "uq_name" in error_msg or "name" in error_msg:
+            raise HTTPException(status_code=409, detail="name already exists") from None
+        raise HTTPException(status_code=409, detail="duplicate key error") from None
+    
     return _to_user_item(user)
 
 
@@ -262,8 +343,9 @@ async def update_user(user_code: str, payload: UserUpdateRequest) -> UserItem:
 async def link_user_to_session(user_code: str, payload: LinkSessionRequest) -> UserSessionItem:
     """把某個 session(bag) 綁定到指定使用者。
 
-    - payload 允許用 session_name 或 bag_hash 來定位 session（擇一）
+    - payload 允許用 session_name 或 bag_filename 來定位 session（擇一）
     - 綁定方式：把 session.user_code 設成 user_code
+    - 限制：一個 bag（bag_filename）只能綁定一個使用者
     """
     user: Optional[UserProfile] = await UserProfile.find_one(UserProfile.user_code == user_code)
     if not user:
@@ -271,18 +353,31 @@ async def link_user_to_session(user_code: str, payload: LinkSessionRequest) -> U
 
     session: Optional[RealsensePoseExtractor] = None
     if payload.session_name:
-        # 以 session_name 定位 session（通常最直覺）
+        # 以 session_name 定位 session
         session = await RealsensePoseExtractor.find_one(
             RealsensePoseExtractor.session_name == payload.session_name
         )
-    elif payload.bag_hash:
-        # 以 bag_hash 定位 session（適合用在「同名檔案」或「只知道檔案內容」的情境）
+    elif payload.bag_filename:
+        # 以 bag_filename 定位 session（推薦）
         session = await RealsensePoseExtractor.find_one(
-            RealsensePoseExtractor.bag_hash == payload.bag_hash
+            RealsensePoseExtractor.bag_filename == payload.bag_filename
         )
 
     if not session:
         raise HTTPException(status_code=404, detail="session not found")
+
+    # 檢查此 bag 是否已被其他使用者綁定（一個 bag 只能綁定一個使用者）
+    # 使用 bag_filename 檢查（比 bag_hash 更可靠，因為 bag_filename 一定有值）
+    existing_binding = await RealsensePoseExtractor.find_one(
+        RealsensePoseExtractor.bag_filename == session.bag_filename,
+        RealsensePoseExtractor.user_code != None,
+        RealsensePoseExtractor.user_code != user_code,
+    )
+    if existing_binding:
+        raise HTTPException(
+            status_code=409,
+            detail=f"bag is already linked to another user: {existing_binding.user_code}",
+        )
 
     # 執行綁定
     session.user_code = user_code
@@ -303,7 +398,7 @@ async def unlink_user_from_session(
 ) -> UnlinkSessionResponse:
     """把某個 session(bag) 從指定使用者解除綁定。
 
-    - payload 允許用 session_name 或 bag_hash 來定位 session（擇一）
+    - payload 允許用 session_name 或 bag_filename 來定位 session（擇一）
     - 若 payload.unlink_all=true，會一次解除該 user 綁定的所有 sessions
     - 預設會要求 session.user_code == user_code；不符合會回 409
     - 解除綁定方式：把 session.user_code 設成 None
@@ -337,9 +432,9 @@ async def unlink_user_from_session(
         session = await RealsensePoseExtractor.find_one(
             RealsensePoseExtractor.session_name == payload.session_name
         )
-    elif payload.bag_hash:
+    elif payload.bag_filename:
         session = await RealsensePoseExtractor.find_one(
-            RealsensePoseExtractor.bag_hash == payload.bag_hash
+            RealsensePoseExtractor.bag_filename == payload.bag_filename
         )
 
     if not session:

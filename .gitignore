@@ -63,3 +63,6 @@ logs/
 # Cursor
 .cursor/
 .cursorignore
+
+# API md
+FRONTEND_API_CHANGES.md
