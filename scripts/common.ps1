@@ -2,6 +2,19 @@
 
 $ErrorActionPreference = 'Stop'
 
+function Write-Section {
+  param(
+    [Parameter(Mandatory)]
+    [string] $Title
+  )
+  $line = "=" * 50
+  Write-Host ""
+  Write-Host $line -ForegroundColor Cyan
+  Write-Host "  $Title" -ForegroundColor Cyan
+  Write-Host $line -ForegroundColor Cyan
+  Write-Host ""
+}
+
 function Get-ProjectRoot {
   param(
     [Parameter(Mandatory)]

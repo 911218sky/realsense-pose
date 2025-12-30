@@ -94,6 +94,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.exception("Redis initialization failed in lifespan")
             raise
 
+        # Run database migrations
+        try:
+            from db.mongo.migration_runner import run_all_migrations
+            logger.info("Running database migrations...")
+            success = await run_all_migrations()
+            if success:
+                logger.info("✅ All migrations completed successfully")
+            else:
+                logger.warning("⚠️ Some migrations failed (non-fatal)")
+        except Exception as e:
+            logger.warning(f"Migration failed (non-fatal): {e}")
+            # Don't fail startup if migration fails
+
         yield
     finally:
         # 關閉 Mongo

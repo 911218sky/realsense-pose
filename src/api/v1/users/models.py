@@ -134,6 +134,8 @@ class UserSessionItem(BaseModel):
     npy_path: str
     # bag 檔路徑（字串）
     bag_path: str
+    # bag 檔案名稱（例如：1_1_607.bag）
+    bag_filename: str
     # bag 內容 hash（用於去重/比對）
     bag_hash: Optional[str] = None
     # 建立時間
@@ -209,19 +211,19 @@ class LinkSessionRequest(BaseModel):
 
     你可以用：
     - session_name 來指定要綁哪一筆 session
-    - 或 bag_hash 來指定（兩者擇一即可）
+    - 或 bag_filename 來指定（推薦，最直覺）
     """
 
     # 以 session_name 指定要綁定的 session
     session_name: Optional[str] = Field(None, max_length=256)
-    # 以 bag_hash 指定要綁定的 session
-    bag_hash: Optional[str] = Field(None, max_length=256)
+    # 以 bag_filename 指定要綁定的 session（推薦）
+    bag_filename: Optional[str] = Field(None, max_length=256)
 
     @model_validator(mode="after")
     def _ensure_target(self) -> "LinkSessionRequest":
-        # 驗證：至少要提供 session_name 或 bag_hash 其中之一
-        if not self.session_name and not self.bag_hash:
-            raise ValueError("Either session_name or bag_hash is required")
+        # 驗證：至少要提供其中之一
+        if not self.session_name and not self.bag_filename:
+            raise ValueError("Either session_name or bag_filename is required")
         return self
 
 
@@ -230,23 +232,23 @@ class UnlinkSessionRequest(BaseModel):
 
     你可以用：
     - session_name 來指定要解除哪一筆 session
-    - 或 bag_hash 來指定（兩者擇一即可）
-    - 或 unlink_all=true 一次解除該使用者所有 sessions（此時不可同時帶 session_name/bag_hash）
+    - 或 bag_filename 來指定（推薦）
+    - 或 unlink_all=true 一次解除該使用者所有 sessions（此時不可同時帶其他參數）
     """
 
     unlink_all: bool = Field(False, description="若為 True，一次解除該使用者所有 sessions(bag) 綁定")
     session_name: Optional[str] = Field(None, max_length=256)
-    bag_hash: Optional[str] = Field(None, max_length=256)
+    bag_filename: Optional[str] = Field(None, max_length=256)
 
     @model_validator(mode="after")
     def _ensure_target(self) -> "UnlinkSessionRequest":
         if self.unlink_all:
-            if self.session_name or self.bag_hash:
-                raise ValueError("unlink_all cannot be used together with session_name/bag_hash")
+            if self.session_name or self.bag_filename:
+                raise ValueError("unlink_all cannot be used together with session_name/bag_filename")
             return self
 
-        if not self.session_name and not self.bag_hash:
-            raise ValueError("Either session_name or bag_hash is required (or set unlink_all=true)")
+        if not self.session_name and not self.bag_filename:
+            raise ValueError("Either session_name or bag_filename is required (or set unlink_all=true)")
         return self
 
 
@@ -264,3 +266,18 @@ class UnlinkSessionResponse(BaseModel):
     mode: Literal["single", "all"]
     unlinked_sessions: int
     session: Optional[UserSessionItem] = None
+
+
+class FindUserByBagRequest(BaseModel):
+    """透過 BAG 檔案尋找使用者的請求 body：POST /v1/users/find-by-bag"""
+
+    bag_filename: str = Field(..., min_length=1, max_length=256, description="BAG 檔案名稱（例如：1_1_607.bag）")
+
+
+class FindUserByBagResponse(BaseModel):
+    """透過 BAG 檔案尋找使用者的回傳：POST /v1/users/find-by-bag"""
+
+    found: bool = Field(..., description="是否找到使用者")
+    user: Optional[UserItem] = Field(None, description="找到的使用者資料（若有）")
+    sessions: List[UserSessionItem] = Field(default_factory=list, description="該使用者的所有 session 列表（found=True 時）或使用該 BAG 檔案的 session 列表（found=False 時）")
+    total_sessions: int = Field(0, description="該使用者的 session 總數（found=True 時）或使用該 BAG 檔案的 session 總數（found=False 時）")

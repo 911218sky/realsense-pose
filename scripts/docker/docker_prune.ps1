@@ -4,7 +4,7 @@
 #   .\scripts\docker\docker_prune.ps1 --all    # Clean all unused images (including tagged)
 #   .\scripts\docker\docker_prune.ps1 --nuke   # Nuclear cleanup (delete everything)
 
-. (Join-Path $PSScriptRoot '..\_common.ps1')
+. (Join-Path $PSScriptRoot '..\common.ps1')
 $null = Initialize-Script -ScriptRoot $PSScriptRoot
 
 $All = $false

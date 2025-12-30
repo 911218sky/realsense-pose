@@ -46,6 +46,26 @@ echo.
 docker compose --env-file .env -f docker-compose.yml ps
 
 echo.
+echo === Running database migrations ===
+echo Waiting for services to be ready...
+timeout /t 5 /nobreak >nul
+
+REM Check if API container is running
+docker ps --filter "name=realsense-pose-api" --format "{{.Names}}" | findstr /C:"realsense-pose-api" >nul
+if errorlevel 1 (
+  echo [WARNING] API container not found, skipping database migration
+  echo You can run it manually later: fix_database.bat
+) else (
+  echo Running database fixes...
+  docker exec realsense-pose-api python -m db.mongo.migration_runner
+  if errorlevel 1 (
+    echo [WARNING] Database migration failed. You may need to run fix_database.bat manually.
+  ) else (
+    echo [SUCCESS] Database migration completed!
+  )
+)
+
+echo.
 echo Done.
 pause
 exit /b 0

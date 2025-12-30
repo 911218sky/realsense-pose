@@ -230,6 +230,7 @@ async def run_extraction_pipeline(
 
     return ExtractResponse(
         bag_path=str(bag_path_to_use),
+        bag_filename=bag_path_to_use.name,
         npy_path=str(npy_path),
         video_path=str(video_path) if (video_path and video_path.exists()) else None,
         session_name=session_name,
