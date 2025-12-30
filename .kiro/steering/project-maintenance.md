@@ -2,107 +2,107 @@
 alwaysApply: true
 ---
 
-# 專案維護規範
+# Project Maintenance Guidelines
 
-適用範圍：`src/` 目錄下所有 Python 程式碼
+Scope: All Python code under `src/` directory
 
-## 專案概述
+## Project Overview
 
-RealSense Pose — 使用 Intel RealSense 相機與 MediaPipe 的姿態估計與復健分析系統。
+RealSense Pose — Pose estimation and rehabilitation analysis system using Intel RealSense camera and MediaPipe.
 
-技術棧：FastAPI + MongoDB + Redis + Flutter Web UI
+Tech Stack: FastAPI + MongoDB + Redis + Flutter Web UI
 
-## 架構分層
+## Architecture Layers
 
 ```
 src/
-├── api/                    # 應用層：FastAPI 路由與中介層
-│   ├── v1/                 # API 版本化路由
-│   │   ├── rehab_analyzer/ # 復健分析 API endpoints
-│   │   ├── realsense_pose_extractor/  # 姿態擷取 API
-│   │   ├── users/          # 使用者管理
-│   │   └── admins/         # 管理員認證
-│   ├── auth/               # 認證模組（signed headers）
-│   ├── middlewares/        # 中介層（payload decode）
-│   └── utils/              # API 工具（cache, codec, env）
-├── rehab_analyzer/         # 分析核心：步態/圈數/FFT 分析
-│   ├── session_analyzer.py # Facade：RehabilitationSessionAnalyzer
-│   ├── lap_detector.py     # 圈數偵測
-│   ├── gait_analyzer.py    # 步態分析
-│   ├── fft_analyzer.py     # 頻譜分析
-│   ├── pose_processor.py   # 姿態前處理
-│   ├── data_loader.py      # 資料載入
-│   ├── entities.py         # 資料結構（dataclass）
-│   └── visualizer.py       # 視覺化（lazy import）
-├── realsense_pose_extractor/  # 姿態擷取核心
-│   ├── processor.py        # Facade：PoseProcessor
+├── api/                    # Application layer: FastAPI routes & middlewares
+│   ├── v1/                 # Versioned API routes
+│   │   ├── rehab_analyzer/ # Rehabilitation analysis API endpoints
+│   │   ├── realsense_pose_extractor/  # Pose extraction API
+│   │   ├── users/          # User management
+│   │   └── admins/         # Admin authentication
+│   ├── auth/               # Auth module (signed headers)
+│   ├── middlewares/        # Middlewares (payload decode)
+│   └── utils/              # API utilities (cache, codec, env)
+├── rehab_analyzer/         # Analysis core: gait/lap/FFT analysis
+│   ├── session_analyzer.py # Facade: RehabilitationSessionAnalyzer
+│   ├── lap_detector.py     # Lap detection
+│   ├── gait_analyzer.py    # Gait analysis
+│   ├── fft_analyzer.py     # Spectrum analysis
+│   ├── pose_processor.py   # Pose preprocessing
+│   ├── data_loader.py      # Data loading
+│   ├── entities.py         # Data structures (dataclass)
+│   └── visualizer.py       # Visualization (lazy import)
+├── realsense_pose_extractor/  # Pose extraction core
+│   ├── processor.py        # Facade: PoseProcessor
 │   ├── pipeline.py         # RealSense pipeline
-│   ├── bag_io.py           # .bag 檔案 I/O
-│   ├── pose_ops.py         # 姿態運算
-│   └── video_overlay.py    # 影片疊加
-├── db/                     # 資料層：MongoDB models
+│   ├── bag_io.py           # .bag file I/O
+│   ├── pose_ops.py         # Pose operations
+│   └── video_overlay.py    # Video overlay
+├── db/                     # Data layer: MongoDB models
 │   └── mongo/models/       # Beanie document models
-├── config/                 # 設定載入（YAML）
-├── logger/                 # 日誌設定
-├── utils/                  # 共用工具
-└── cli.py                  # CLI 入口
+├── config/                 # Configuration loading (YAML)
+├── logger/                 # Logging setup
+├── utils/                  # Shared utilities
+└── cli.py                  # CLI entry point
 ```
 
-依賴方向：只能往下層流動，禁止循環依賴
+Dependency direction: Must flow downward only, circular dependencies are prohibited
 
 ```
-API 路由 (api/v1/*)
+API Routes (api/v1/*)
     ↓
 Facade (session_analyzer / processor)
     ↓
-分析核心 (lap_detector / gait_analyzer / fft_analyzer)
+Analysis Core (lap_detector / gait_analyzer / fft_analyzer)
     ↓
-前處理 (pose_processor / data_loader)
+Preprocessing (pose_processor / data_loader)
     ↓
-資料層 (db / config / utils)
+Data Layer (db / config / utils)
 ```
 
-## 核心原則
+## Core Principles
 
-1. **可維護性優先** — 清楚的模組邊界、易定位、易測試、易替換
-2. **對外相容** — 重構時維持既有 import 路徑與 API，避免破壞 API/CLI/Visualizer
-3. **可讀性** — 複雜度分散到多個小檔案，避免長函式/長檔案
+1. **Maintainability First** — Clear module boundaries, easy to locate, test, and replace
+2. **External Compatibility** — Preserve existing import paths and APIs during refactoring, avoid breaking API/CLI/Visualizer
+3. **Readability** — Distribute complexity across multiple small files, avoid long functions/files
 
-## 拆檔規則
+## File Splitting Rules
 
-| 規則 | 說明 |
-|------|------|
-| 單一職責 | 一檔一主題，如 `lap_detector.py` 只放圈數偵測 |
-| 檔案上限 | 超過 400-600 行應拆成 2-4 個模組 |
-| Facade 模式 | 保留舊入口做 re-export（如 `rehab_analyzer.py`），維持 `from xxx import Y` 不變 |
-| 工具模組 | 通用工具放 `utils/` 或精確命名如 `cache_keys.py`，不堆同一檔 |
+| Rule | Description |
+|------|-------------|
+| Single Responsibility | One file, one topic (e.g., `lap_detector.py` only contains lap detection) |
+| File Size Limit | Files exceeding 400-600 lines should be split into 2-4 modules |
+| Facade Pattern | Keep old entry points for re-export (e.g., `rehab_analyzer.py`), maintain `from xxx import Y` unchanged |
+| Utility Modules | Place common utilities in `utils/` or use precise naming like `cache_keys.py`, don't pile into one file |
 
-## 命名慣例
+## Naming Conventions
 
-- 模組：`snake_case.py`
-- 對外 API：在 `__init__.py` 用 `__all__` 管理 re-export
-- 內部模組：用 `_xxx.py` 表示私有（已被外部引用的不改）
-- Lazy import：重依賴（matplotlib/cv2）用 `__getattr__` 延遲載入
+- Modules: `snake_case.py`
+- Public API: Use `__all__` in `__init__.py` to manage re-exports
+- Internal modules: Use `_xxx.py` prefix for private (don't rename if already referenced externally)
+- Lazy import: Use `__getattr__` for heavy dependencies (matplotlib/cv2)
 
-## 型別要求
+## Type Requirements
 
-- 對外資料結構用 `dataclass`（如 `entities.py`）或 Pydantic models（如 `api/v1/*/models.py`）
-- 新增/修改的函式必須加 type hints
-- 避免使用 `Any`
+- Use `dataclass` for external data structures (e.g., `entities.py`) or Pydantic models (e.g., `api/v1/*/models.py`)
+- All new/modified functions must have type hints
+- Avoid using `Any`
 
-## 快取策略
+## Caching Strategy
 
-- API 層用 `@redis_cache(expire=30)` 裝飾器
-- 分析核心用 `cachetools.cachedmethod` + `TTLCache`
-- cache key 統一用 `rehab_analyzer.cache_keys.method_key`
-- 注意：`ndarray`/`list` 不可 hash，需轉換
+- API layer: Use `@redis_cache(expire=30)` decorator
+- Analysis core: Use `cachetools.cachedmethod` + `TTLCache`
+- Cache keys: Use `rehab_analyzer.cache_keys.method_key` uniformly
+- Note: `ndarray`/`list` are not hashable, conversion required
 
-## 修改後檢查
+## Post-Modification Checks
 
-每次修改 `src/` 後執行：
+After every modification to `src/`, run:
 
 ```bash
 python -m compileall src
 ```
 
-若改動 API schema 或 CLI 行為，需做 smoke test 驗證。
+If API schema or CLI behavior changes, perform smoke test verification.
