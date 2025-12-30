@@ -111,6 +111,7 @@ Or download from [Docker Desktop for Mac](https://www.docker.com/products/docker
 | `stop.bat` | ⏹️ Stop: shut down all containers |
 | `clean_project.bat` | 🧹 Clean project: remove containers, images, volumes |
 | `prune_docker.bat` | 🗑️ Prune Docker: remove all unused Docker resources |
+| `fix_database.bat` | 🔧 Run database migrations to fix schema issues |
 
 ### Backup Scripts (backup/)
 
@@ -142,6 +143,9 @@ docker compose ps
 
 # Manual backup
 docker exec realsense-pose-backup /usr/local/bin/backup.sh
+
+# Run database migrations
+docker compose exec api python -m src.db.mongo.migration_runner
 
 # Clean up
 docker compose down -v --rmi all
@@ -196,6 +200,16 @@ The deployment includes an automatic backup service that runs inside Docker:
 
 See `backup/README.md` for more details.
 
+## Database Migrations
+
+The project includes a database migration system to handle schema updates:
+
+- **Auto-run on startup**: Migrations run automatically when the API container starts
+- **Manual run**: Use `fix_database.bat` (Windows) or `docker compose exec api python -m src.db.mongo.migration_runner` (Linux)
+- **Migration files**: Located in `src/db/mongo/migrations/`
+
+See migration files for details on what each migration does.
+
 ## FAQ
 
 **Q: "Docker is not available" error?**  
@@ -215,3 +229,6 @@ A: Edit `BACKUP_CRON` in `.env` file (cron format, default: `0 2 * * *` = 2 AM d
 
 **Q: Permission denied on Linux?**  
 A: Add your user to docker group: `sudo usermod -aG docker $USER` then logout/login
+
+**Q: Database schema issues after update?**  
+A: Run `fix_database.bat` (Windows) or the migration command (Linux) to apply schema fixes
