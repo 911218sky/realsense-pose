@@ -65,6 +65,7 @@ def _to_session_item(doc: RealsensePoseExtractor) -> UserSessionItem:
         bag_path=doc.bag_path,
         bag_filename=doc.bag_filename,
         bag_hash=doc.bag_hash,
+        video_path=doc.video_path,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
