@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import aiofiles
 from bson import ObjectId
 from fastapi import APIRouter, Body, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
@@ -273,7 +274,7 @@ async def get_session_video(
             detail=f"video file not found: {session_name} (file may have been deleted)"
         )
     
-    # 取得檔案大小
+    # 取得檔案大小（同步操作，但很快）
     file_size = video_file.stat().st_size
     
     # 處理 Range Request
@@ -286,16 +287,15 @@ async def get_session_video(
         end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
         end = min(end, file_size - 1)
         
-        # 讀取指定範圍的資料
         chunk_size = end - start + 1
         
-        def iter_file():
-            with open(video_file, "rb") as f:
-                f.seek(start)
+        async def iter_file_range():
+            async with aiofiles.open(video_file, "rb") as f:
+                await f.seek(start)
                 remaining = chunk_size
                 while remaining > 0:
                     read_size = min(8192, remaining)
-                    data = f.read(read_size)
+                    data = await f.read(read_size)
                     if not data:
                         break
                     remaining -= len(data)
@@ -309,15 +309,16 @@ async def get_session_video(
         }
         
         return StreamingResponse(
-            iter_file(),
-            status_code=206,  # Partial Content
+            iter_file_range(),
+            # Partial Content
+            status_code=206,
             headers=headers,
         )
     
     # 沒有 Range Request，回傳完整檔案
-    def iter_full_file():
-        with open(video_file, "rb") as f:
-            while chunk := f.read(8192):
+    async def iter_full_file():
+        async with aiofiles.open(video_file, "rb") as f:
+            while chunk := await f.read(8192):
                 yield chunk
     
     headers = {

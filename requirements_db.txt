@@ -6,6 +6,8 @@ redis~=7.1.0
 beanie~=2.0.1
 # Motor: MongoDB 非同步 driver（Beanie 底層使用）
 motor~=3.7.1
+# Async file I/O: 非同步檔案讀寫（避免阻塞 event loop）
+aiofiles~=25.1.0
 
 # Brotli compression (used to precompress Flutter Web assets into .br files)
 brotli>=1.1.0,<2
