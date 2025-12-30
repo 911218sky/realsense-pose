@@ -138,6 +138,8 @@ class UserSessionItem(BaseModel):
     bag_filename: str
     # bag 內容 hash（用於去重/比對）
     bag_hash: Optional[str] = None
+    # 影片檔路徑（可選，若有產出影片）
+    video_path: Optional[str] = None
     # 建立時間
     created_at: datetime
     # 更新時間
