@@ -4,7 +4,7 @@ from typing import Dict, List, Type
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from logger import setup_logger
+from src.logger import setup_logger
 
 logger = setup_logger("mongo")
 

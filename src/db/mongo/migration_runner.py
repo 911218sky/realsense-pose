@@ -13,8 +13,8 @@ from typing import Callable, Dict, List, Tuple
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from db.mongo.models import RealsensePoseExtractor
-from logger import setup_logger
+from src.db.mongo.models import RealsensePoseExtractor
+from src.logger import setup_logger
 
 logger = setup_logger(__name__)
 

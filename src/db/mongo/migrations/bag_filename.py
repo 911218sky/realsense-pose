@@ -10,8 +10,8 @@ Date: 2024-12-30
 from pathlib import Path
 from typing import Dict
 
-from db.mongo.models import RealsensePoseExtractor
-from logger import setup_logger
+from src.db.mongo.models import RealsensePoseExtractor
+from src.logger import setup_logger
 
 logger = setup_logger(__name__)
 
