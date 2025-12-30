@@ -11,6 +11,9 @@ on:
         required: false
         default: ''
         type: string
+  # Triggered by gait-charts release
+  repository_dispatch:
+    types: [gait-charts-release]
 
 concurrency:
   group: docker-build-${{ github.ref }}
