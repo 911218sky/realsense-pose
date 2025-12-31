@@ -7,7 +7,7 @@ REM - Pulls prebuilt image from Docker Hub and starts via docker compose
 REM - Does NOT build locally
 REM ============================================================
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo === Checking Docker ===
 docker version >nul 2>&1

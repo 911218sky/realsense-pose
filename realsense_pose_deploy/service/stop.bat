@@ -2,10 +2,16 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 REM ============================================================
-REM Stop (Windows cmd)
+REM Stop Services (Windows cmd)
 REM ============================================================
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
+
+if not exist ".env" (
+  echo ERROR: .env not found.
+  pause
+  exit /b 1
+)
 
 echo === Stopping services ===
 docker compose --env-file .env -f docker-compose.yml down
