@@ -1,0 +1,89 @@
+name: ✨ Feature Request
+description: 提出新功能或改進建議
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝你的建議！好的想法讓專案更好。
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🔧 相關模組
+      description: 這個功能與哪個模組相關？
+      options:
+        - API (src/api)
+        - Rehab Analyzer (src/rehab_analyzer)
+        - Pose Extractor (src/realsense_pose_extractor)
+        - Database (src/db)
+        - CLI (src/cli.py)
+        - Flutter Web UI
+        - Infrastructure (Docker/Helm)
+        - New Module
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 📊 優先級建議
+      options:
+        - High - 核心功能需求
+        - Medium - 重要改進
+        - Low - Nice to have
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🤔 問題背景
+      description: 這個功能要解決什麼問題？
+      placeholder: 我在使用 [...] 時，經常遇到 [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 建議方案
+      description: 你希望如何解決這個問題？
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 替代方案
+      description: 你考慮過其他解決方案嗎？
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: 🛠️ 實作建議
+      description: 如果你有技術實作的想法，請分享
+      placeholder: |
+        可能的實作方式：
+        - 在 xxx.py 新增 ...
+        - 修改 API endpoint ...
+
+  - type: textarea
+    id: mockup
+    attributes:
+      label: 🎨 設計稿/截圖
+      description: 如果有 UI 相關，請附上設計稿或參考圖
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 貢獻意願
+      options:
+        - label: 我願意協助實作這個功能
+          required: false
+        - label: 我可以協助測試
+          required: false

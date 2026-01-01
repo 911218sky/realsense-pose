@@ -1,0 +1,55 @@
+name: ❓ Question
+description: 詢問問題或尋求幫助
+title: "[Question]: "
+labels: ["question", "help-wanted"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        有問題想問？我們很樂意幫忙！
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: 📚 問題類別
+      options:
+        - Usage - 使用方式
+        - Configuration - 設定問題
+        - Integration - 整合問題
+        - Architecture - 架構設計
+        - Best Practices - 最佳實踐
+        - Other - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: ❓ 你的問題
+      description: 請清楚描述你的問題
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📋 背景資訊
+      description: 提供相關的背景資訊，幫助我們更好地回答
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 🔍 已嘗試的方法
+      description: 你已經嘗試過什麼？
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✔️ 確認事項
+      options:
+        - label: 我已查閱過 README 和相關文件
+          required: true
+        - label: 我已搜尋過現有的 Issues
+          required: true
