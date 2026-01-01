@@ -19,3 +19,4 @@ HOST_DATASET_DIR = (os.getenv("HOST_DATASET_DIR") or "").strip() or None
 
 GITHUB_REPO = "911218sky/gait-charts"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_API_PROXY_URL = f"https://github.sky1218.com/api/repos/{GITHUB_REPO}/releases/latest"

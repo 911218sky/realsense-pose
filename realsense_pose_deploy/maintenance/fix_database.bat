@@ -2,11 +2,10 @@
 REM ============================================================================
 REM Database Migration/Fix Script for Deployment
 REM ============================================================================
-REM This script runs database migrations inside the Docker container.
-REM It should be run after updating to a new version.
-REM ============================================================================
 
 setlocal enabledelayedexpansion
+
+cd /d "%~dp0.."
 
 echo.
 echo ============================================================
@@ -29,7 +28,7 @@ if errorlevel 1 (
     echo [ERROR] API container is not running!
     echo.
     echo Please start the services first:
-    echo   docker compose up -d
+    echo   service\start.bat
     echo.
     pause
     exit /b 1
@@ -56,10 +55,5 @@ echo ============================================================
 echo   Migration Completed Successfully!
 echo ============================================================
 echo.
-echo Next steps:
-echo   1. Verify API is working: http://localhost:8100/v1/docs
-echo   2. Check logs: docker compose logs api
-echo.
-
 pause
 exit /b 0

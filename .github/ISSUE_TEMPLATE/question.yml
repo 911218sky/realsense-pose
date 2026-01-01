@@ -1,0 +1,55 @@
+name: ❓ Question
+description: Ask a question or seek help
+title: "[Question]: "
+labels: ["question", "help-wanted"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're happy to help!
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: 📚 Topic
+      options:
+        - Usage
+        - Configuration
+        - Integration
+        - Architecture
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: ❓ Your Question
+      description: Please clearly describe your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📋 Context
+      description: Provide relevant background information to help us answer better
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 🔍 What You've Tried
+      description: What have you already tried?
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✔️ Checklist
+      options:
+        - label: I have read the README and related documentation
+          required: true
+        - label: I have searched existing issues
+          required: true

@@ -2,12 +2,10 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 REM ============================================================
-REM Clean (Windows cmd)
-REM - 停止並移除此專案的容器、網路、volumes
-REM - 可選擇是否刪除 data 資料夾
+REM Clean Project - Remove containers, images, volumes
 REM ============================================================
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo.
 echo ==========================================
@@ -58,23 +56,23 @@ echo.
 echo [4/4] Data directories cleanup...
 echo.
 echo Current data directories:
-if exist "..\data" (
+if exist "data" (
   echo   - data\mongo
   echo   - data\redis
   echo   - data\npy
   echo   - data\bag
 )
-if exist "..\outputs" echo   - outputs
+if exist "outputs" echo   - outputs
 
 echo.
 set /p CLEAN_DATA="Delete data directories? (y/N): "
 if /i "!CLEAN_DATA!"=="y" (
   echo Removing data directories...
-  if exist "..\data\mongo" rmdir /s /q "..\data\mongo" && echo   Removed data\mongo
-  if exist "..\data\redis" rmdir /s /q "..\data\redis" && echo   Removed data\redis
-  if exist "..\data\npy" rmdir /s /q "..\data\npy" && echo   Removed data\npy
-  if exist "..\data\bag" rmdir /s /q "..\data\bag" && echo   Removed data\bag
-  if exist "..\outputs" rmdir /s /q "..\outputs" && echo   Removed outputs
+  if exist "data\mongo" rmdir /s /q "data\mongo" && echo   Removed data\mongo
+  if exist "data\redis" rmdir /s /q "data\redis" && echo   Removed data\redis
+  if exist "data\npy" rmdir /s /q "data\npy" && echo   Removed data\npy
+  if exist "data\bag" rmdir /s /q "data\bag" && echo   Removed data\bag
+  if exist "outputs" rmdir /s /q "outputs" && echo   Removed outputs
   echo Data directories removed.
 ) else (
   echo Skipped data directory cleanup.
@@ -85,7 +83,7 @@ echo ==========================================
 echo Cleanup Complete!
 echo ==========================================
 echo.
-echo To redeploy, run: deploy.bat
+echo To redeploy, run: setup\deploy.bat
 echo.
 pause
 exit /b 0
