@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Generate Commit Message & Push",
+  "description": "Analyze git diff, generate a conventional commit message, commit changes, and push to remote",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Please help me commit and push my changes:\n\n1. First, run `git add -A` to stage all changes\n2. Run `git diff --cached` to see the staged changes\n3. Analyze the diff and generate a commit message following these rules:\n   - Language: English only\n   - Format: <type>(<scope>): <short description>\n   - Types with emojis:\n     - feat (✨) - new feature\n     - fix (🐛) - bug fix\n     - refactor (♻️) - code refactoring\n     - docs (📝) - documentation\n     - style (💄) - formatting, styling\n     - perf (⚡) - performance improvement\n     - test (✅) - tests\n     - chore (🔧) - maintenance\n     - ci (👷) - CI/CD changes\n   - First line must be under 72 characters\n   - Use imperative mood (\"add\" not \"added\")\n   - No period at end of subject line\n   - Infer scope from file paths (e.g., video, api, dashboard, db, config, hooks)\n   - If changes are complex or span multiple areas, add a body with bullet points\n\n4. Execute the commit:\n   - Simple changes: `git commit -m \"<type>(<scope>): <emoji> <description>\"`\n   - Complex changes: `git commit -m \"<subject>\" -m \"<body with bullet points>\"`\n\n5. Push to remote: `git push`\n\nExamples:\n- ✨ feat(video): add H.264 encoding support\n- 🐛 fix(api): resolve session deletion not removing files\n- ♻️ refactor(processor): extract video codec selection logic\n- 📝 docs(readme): update installation instructions"
+  }
+}
