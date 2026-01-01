@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: 📖 Documentation
     url: https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/README.md
-    about: 查看專案文件
+    about: Check out the project documentation
   - name: 💬 Discussions
     url: https://github.com/YOUR_USERNAME/YOUR_REPO/discussions
-    about: 一般討論請到 Discussions
+    about: For general discussions, head to Discussions

@@ -1,5 +1,5 @@
 name: 📋 Task
-description: 建立開發任務或待辦事項
+description: Create a development task or to-do item
 title: "[Task]: "
 labels: ["task"]
 assignees: []
@@ -8,28 +8,28 @@ body:
   - type: markdown
     attributes:
       value: |
-        建立一個開發任務或待辦事項。
+        Create a development task or to-do item.
 
   - type: dropdown
     id: type
     attributes:
-      label: 📁 任務類型
+      label: 📁 Task Type
       options:
-        - Refactoring - 重構
-        - Documentation - 文件
-        - Testing - 測試
-        - Performance - 效能優化
-        - Security - 安全性
-        - DevOps - 部署/CI/CD
-        - Maintenance - 維護
-        - Research - 研究/調查
+        - Refactoring
+        - Documentation
+        - Testing
+        - Performance
+        - Security
+        - DevOps / CI/CD
+        - Maintenance
+        - Research
     validations:
       required: true
 
   - type: dropdown
     id: component
     attributes:
-      label: 🔧 相關模組
+      label: 🔧 Related Module
       options:
         - API (src/api)
         - Rehab Analyzer (src/rehab_analyzer)
@@ -45,31 +45,31 @@ body:
   - type: textarea
     id: description
     attributes:
-      label: 📝 任務描述
-      description: 詳細說明這個任務的內容
+      label: 📝 Task Description
+      description: Describe the task in detail
     validations:
       required: true
 
   - type: textarea
     id: checklist
     attributes:
-      label: ✅ 完成條件
-      description: 列出需要完成的項目
+      label: ✅ Acceptance Criteria
+      description: List the items that need to be completed
       placeholder: |
-        - [ ] 項目 1
-        - [ ] 項目 2
-        - [ ] 項目 3
+        - [ ] Item 1
+        - [ ] Item 2
+        - [ ] Item 3
     validations:
       required: true
 
   - type: textarea
     id: context
     attributes:
-      label: 📚 相關資源
-      description: 相關的文件、Issue 或 PR 連結
+      label: 📚 Related Resources
+      description: Related documentation, issues, or PR links
 
   - type: input
     id: estimate
     attributes:
-      label: ⏱️ 預估時間
-      placeholder: 例如：2h, 1d, 1w
+      label: ⏱️ Time Estimate
+      placeholder: e.g., 2h, 1d, 1w

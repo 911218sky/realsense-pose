@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: 回報程式錯誤或異常行為
+description: Report a bug or unexpected behavior
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
 assignees: []
@@ -8,13 +8,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        感謝你花時間回報問題！請盡可能詳細填寫以下資訊。
+        Thanks for taking the time to report this issue! Please fill out the information below as detailed as possible.
 
   - type: dropdown
     id: component
     attributes:
-      label: 🔧 影響模組
-      description: 這個問題發生在哪個模組？
+      label: 🔧 Affected Module
+      description: Which module is affected by this issue?
       options:
         - API (src/api)
         - Rehab Analyzer (src/rehab_analyzer)
@@ -29,64 +29,64 @@ body:
   - type: dropdown
     id: severity
     attributes:
-      label: 🚨 嚴重程度
+      label: 🚨 Severity
       options:
-        - Critical - 系統無法使用
-        - High - 主要功能受影響
-        - Medium - 部分功能異常
-        - Low - 輕微問題
+        - Critical - System is unusable
+        - High - Major functionality affected
+        - Medium - Partial functionality impacted
+        - Low - Minor issue
     validations:
       required: true
 
   - type: textarea
     id: description
     attributes:
-      label: 📝 問題描述
-      description: 清楚描述你遇到的問題
-      placeholder: 發生了什麼事？
+      label: 📝 Description
+      description: Clearly describe the issue you encountered
+      placeholder: What happened?
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: 🔄 重現步驟
-      description: 如何重現這個問題？
+      label: 🔄 Steps to Reproduce
+      description: How can we reproduce this issue?
       placeholder: |
-        1. 執行 '...'
-        2. 點擊 '...'
-        3. 看到錯誤
+        1. Run '...'
+        2. Click on '...'
+        3. See error
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: ✅ 預期行為
-      description: 你預期應該發生什麼？
+      label: ✅ Expected Behavior
+      description: What did you expect to happen?
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: ❌ 實際行為
-      description: 實際發生了什麼？
+      label: ❌ Actual Behavior
+      description: What actually happened?
     validations:
       required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: 📋 錯誤日誌
-      description: 如果有錯誤訊息，請貼上
+      label: 📋 Error Logs
+      description: If applicable, paste the error logs here
       render: shell
 
   - type: textarea
     id: environment
     attributes:
-      label: 🖥️ 環境資訊
-      description: 請提供你的環境資訊
+      label: 🖥️ Environment
+      description: Please provide your environment information
       value: |
         - OS: 
         - Python: 
@@ -98,15 +98,15 @@ body:
   - type: textarea
     id: screenshots
     attributes:
-      label: 📸 截圖
-      description: 如果適用，請附上截圖
+      label: 📸 Screenshots
+      description: If applicable, add screenshots to help explain the problem
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: ✔️ 確認事項
+      label: ✔️ Checklist
       options:
-        - label: 我已搜尋過現有的 Issues，確認這不是重複問題
+        - label: I have searched existing issues to ensure this is not a duplicate
           required: true
-        - label: 我已閱讀專案文件
+        - label: I have read the project documentation
           required: false

@@ -1,8 +1,8 @@
-# 使用 github-label-sync 或手動建立這些標籤
-# 安裝: npm install -g github-label-sync
-# 執行: github-label-sync --access-token YOUR_TOKEN --labels .github/labels.yml YOUR_USERNAME/YOUR_REPO
+# Use github-label-sync or create these labels manually
+# Install: npm install -g github-label-sync
+# Run: github-label-sync --access-token YOUR_TOKEN --labels .github/labels.yml YOUR_USERNAME/YOUR_REPO
 
-# === 類型標籤 ===
+# === Type Labels ===
 - name: bug
   color: "d73a4a"
   description: "🐛 Something isn't working"
@@ -23,7 +23,7 @@
   color: "0075ca"
   description: "📖 Improvements or additions to documentation"
 
-# === 狀態標籤 ===
+# === Status Labels ===
 - name: needs-triage
   color: "fbca04"
   description: "🔍 Needs review and categorization"
@@ -44,7 +44,7 @@
   color: "c5def5"
   description: "⏸️ On hold"
 
-# === 優先級標籤 ===
+# === Priority Labels ===
 - name: "priority: critical"
   color: "b60205"
   description: "🔴 Critical priority"
@@ -61,7 +61,7 @@
   color: "0e8a16"
   description: "🟢 Low priority"
 
-# === 模組標籤 ===
+# === Module Labels ===
 - name: "module: api"
   color: "c2e0c6"
   description: "📡 API related (src/api)"
@@ -86,7 +86,7 @@
   color: "c2e0c6"
   description: "🐳 Infrastructure (Docker/Helm)"
 
-# === 難度標籤 ===
+# === Difficulty Labels ===
 - name: "good first issue"
   color: "7057ff"
   description: "👋 Good for newcomers"
@@ -99,7 +99,7 @@
   color: "5319e7"
   description: "🧠 Requires deep knowledge"
 
-# === 其他標籤 ===
+# === Other Labels ===
 - name: duplicate
   color: "cfd3d7"
   description: "📋 This issue or PR already exists"
