@@ -30,12 +30,121 @@ sudo apt-get install helm
 brew install helm
 ```
 
-### Enable Kubernetes (Docker Desktop)
+### Enable Kubernetes
+
+#### Option 1: Docker Desktop (Easiest for Windows/macOS)
 
 1. Open Docker Desktop
 2. Settings → Kubernetes → Enable Kubernetes
 3. Click "Apply & Restart"
 4. Wait for Kubernetes to start
+
+#### Option 2: Minikube (Cross-platform)
+
+**Windows (PowerShell)**
+```powershell
+# Install Minikube
+winget install Kubernetes.minikube
+
+# Start Minikube
+minikube start --driver=hyperv  # or --driver=virtualbox
+
+# Verify installation
+kubectl get nodes
+```
+
+**Linux**
+```bash
+# Install Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Start Minikube
+minikube start
+
+# Verify installation
+kubectl get nodes
+```
+
+**macOS**
+```bash
+# Install Minikube
+brew install minikube
+
+# Start Minikube
+minikube start
+
+# Verify installation
+kubectl get nodes
+```
+
+#### Option 3: Kind (Kubernetes in Docker)
+
+**Windows (PowerShell)**
+```powershell
+# Install Kind
+winget install Kubernetes.kind
+
+# Create cluster
+kind create cluster --name realsense-pose
+
+# Verify installation
+kubectl cluster-info --context kind-realsense-pose
+```
+
+**Linux / macOS**
+```bash
+# Install Kind
+# Linux
+curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+chmod +x ./kind
+sudo mv ./kind /usr/local/bin/kind
+
+# macOS
+brew install kind
+
+# Create cluster
+kind create cluster --name realsense-pose
+
+# Verify installation
+kubectl cluster-info --context kind-realsense-pose
+```
+
+#### Option 4: K3s (Lightweight, Linux only)
+
+```bash
+# Install K3s
+curl -sfL https://get.k3s.io | sh -
+
+# Set kubeconfig
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+# Verify installation
+sudo kubectl get nodes
+```
+
+#### Option 5: MicroK8s (Ubuntu/Linux)
+
+```bash
+# Install MicroK8s
+sudo snap install microk8s --classic
+
+# Add user to microk8s group
+sudo usermod -a -G microk8s $USER
+sudo chown -f -R $USER ~/.kube
+newgrp microk8s
+
+# Enable required addons
+microk8s enable dns storage
+
+# Set kubectl alias
+alias kubectl='microk8s kubectl'
+
+# Verify installation
+kubectl get nodes
+```
+
+**Note:** For Minikube/Kind, use `service.type=NodePort` instead of `LoadBalancer` in installation commands below.
 
 ## Quick Start
 
