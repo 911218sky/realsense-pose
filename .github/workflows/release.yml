@@ -45,12 +45,20 @@ jobs:
         run: |
           mkdir -p deploy_package
           
-          # Copy deploy scripts (.bat files) and README
-          cp realsense_pose_deploy/*.bat deploy_package/
+          # Copy deploy scripts and README
           cp realsense_pose_deploy/README.md deploy_package/
+          
+          # Copy setup scripts (.bat files for installation)
+          cp -r realsense_pose_deploy/setup deploy_package/
+          
+          # Copy service scripts (.bat files for service management)
+          cp -r realsense_pose_deploy/service deploy_package/
           
           # Copy backup scripts
           cp -r realsense_pose_deploy/backup deploy_package/
+          
+          # Copy maintenance scripts
+          cp -r realsense_pose_deploy/maintenance deploy_package/
           
           # Copy README to root for release body
           cp realsense_pose_deploy/README.md RELEASE_NOTES.md
