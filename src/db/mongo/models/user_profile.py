@@ -87,6 +87,8 @@ class UserProfile(Document):
     bmi: Optional[float] = Field(None, gt=0, le=100, description="BMI；可由身高/體重自動推算。")
     education_level: Optional[str] = Field(None, description="教育程度（文字）。")
 
+    cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表（例如：正常人, 中風, 巴金森 等），一個人可屬於多個族群，預設為 ['正常人']。")
+
     diagnosis: Optional[DiagnosisInfo] = Field(None, description="診斷資訊（結構化欄位）。")
     medical_history: Optional[MedicalHistoryInfo] = Field(None, description="病史資訊（結構化欄位）。")
     symptoms: Optional[SymptomInfo] = Field(None, description="症狀資訊（結構化欄位）。")
@@ -112,6 +114,8 @@ class UserProfile(Document):
             IndexModel([("user_code", ASCENDING)], unique=True),
             IndexModel([("name", ASCENDING)], unique=True, name="uq_name"),
             IndexModel([("created_at", ASCENDING)]),
+            # Multikey index for cohort array - optimizes queries like {"cohort": "stroke"}
+            IndexModel([("cohort", ASCENDING)], name="idx_cohort"),
         ]
 
 
