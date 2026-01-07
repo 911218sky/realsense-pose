@@ -99,13 +99,7 @@ def add_prefix_to_filename(
         raise ValueError("mode must be one of: preserve_full, no_dir")
 
 def setup_logger(name: str, log_file: Optional[str] = None, level: int = logging.INFO) -> logging.Logger:
-    """
-    簡單版 logger 建構器：
-      - 設定 logger 等級
-      - 加上 stream handler（終端機）
-      - 若提供 log_file，則加上 file handler（UTF-8）
-      - 若已經有 handlers，直接回傳（避免重複輸出）
-    """
+    """建立 logger，輸出到終端機，若有指定 log_file 則同時寫檔。"""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger

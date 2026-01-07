@@ -17,14 +17,10 @@ except Exception:
 
 class FFmpegPipe:
     """
-    輕量級的 ffmpeg 管線輔助類別（含自動 fallback 到暫存 PNG 再合成）。
+    ffmpeg 管線輔助類別，透過 stdin pipe 串流 raw frames 給 ffmpeg 編碼成影片。
 
-    改良重點
-    ----------
-    - Windows 上以更安全的方式啟動 ffmpeg（隱藏視窗、減少 handle 問題）。
-    - 寫入過程若 pipe 中斷，會自動切換到 fallback。
-    - fallback 在未輸出任何幀時也會妥善清理暫存。
-    - 啟動前會檢查 ffmpeg 是否存在，並自動建立輸出資料夾。
+    若 pipe 模式失敗（常見於 Windows），會自動切換到 fallback 模式：
+    先把每幀存成暫存 PNG，最後再用 ffmpeg 合成影片。
     """
 
     def __init__(
