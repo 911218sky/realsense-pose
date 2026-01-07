@@ -2,10 +2,10 @@
 fastapi[all]~=0.124.2
 # Redis client: 連線到 Redis（快取/佇列/簡易共享狀態）
 redis~=7.1.0
+
 # Beanie ODM: MongoDB 的 Pydantic ODM（定義模型/CRUD 操作）
+# Beanie 2.0 使用 PyMongo Async（內建），不再需要 Motor
 beanie~=2.0.1
-# Motor: MongoDB 非同步 driver（Beanie 底層使用）
-motor~=3.7.1
 # Async file I/O: 非同步檔案讀寫（避免阻塞 event loop）
 aiofiles~=25.1.0
 
