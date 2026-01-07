@@ -1909,8 +1909,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
     每圈 lateral offset 診斷圖：
 
     - 子圖 A：lateral offset vs time（含原始 / 平滑）
-    - 子圖 B： lateral offset 的 FFT / PSD
-    - 子圖 C：骨盆朝向 θ(t)（以圈起點為 0°）
+    - 子圖 B：骨盆朝向 θ(t)（以圈起點為 0°）
     """
     def _resolve_theta_ylim_for_lap(
         self,
@@ -1991,22 +1990,18 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
         k_smooth: int = 1,
-        fft_band: Tuple[float, float] = (0.00, 2.0),
         dpi: int = 130,
         num_indices: Optional[List[int]] = None,
         max_points_plot: Optional[int] = 150,
         show_samples: bool = True,
         save_name: Optional[str] = None,
         lat_ylim: Optional[Tuple[float, float]] = None,
-        psd_ylim: Optional[Tuple[float, float]] = None,
         theta_ylim: Optional[List[Tuple[float, float]]] = None,
-        fft_params: Optional[Mapping[str, Any]] = None,
     ) -> List[Path]:
         """
-        針對每圈產生三子圖：
+        針對每圈產生兩子圖：
 
         - lat(t) 原始與平滑後曲線
-        - lat(t) 的頻譜 / PSD（只取走路時間，並以 dB 顯示）
         - θ(t)（以圈起始為 0°）
 
         會輸出多個檔案，每圈一張。
@@ -2068,8 +2063,6 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         )
         theta_all = self.compute_pelvis_heading_unwrapped(L2=L2, R2=R2)
 
-        fft_kwargs = dict(fft_params or {})
-
         for lap_idx, lap in enumerate(laps):
             if num_indices is not None and (lap_idx+1) not in num_indices:
                 continue
@@ -2087,38 +2080,16 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
             lat_raw_rel = lat_raw_all[start_idx : end_idx + 1]
             theta_rel = theta_all[start_idx : end_idx + 1] - theta_all[start_idx]
 
-            n_rel = len(t_rel)
-
             # 轉身區域（相對索引）
             tc_start_rel = rel(lap.idx_turn_cone_start)
             tc_end_rel = rel(lap.idx_turn_cone_end)
             th_start_rel = rel(lap.idx_turn_chair_start)
             th_end_rel = rel(lap.idx_turn_chair_end)
 
-            # 走路區段：離開椅子 -> 再次進入椅區
-            walk_start_rel = rel(lap.idx_leave_chair)
-            walk_end_rel = rel(lap.idx_reenter_chair)
-
-            # 夾在合法範圍內
-            walk_start_rel = max(0, min(walk_start_rel, n_rel - 1))
-            walk_end_rel = max(0, min(walk_end_rel, n_rel - 1))
-            if walk_end_rel < walk_start_rel:
-                walk_start_rel, walk_end_rel = walk_end_rel, walk_start_rel
-
-            # 只用走路區段做 FFT
-            lat_fft = lat_rel[walk_start_rel : walk_end_rel + 1]
-            t_fft = t_rel[walk_start_rel : walk_end_rel + 1]
-
-            fft_res = self.compute_lateral_offset_fft(
-                lat=lat_fft,
-                t=t_fft,
-                band=fft_band,
-                **fft_kwargs,
-            )
             sample_idx = compute_sample_idx(len(t_rel), max_points_plot)
 
-            fig = plt.figure(figsize=(11, 11), constrained_layout=True)
-            gridspec = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1])
+            fig = plt.figure(figsize=(11, 8), constrained_layout=True)
+            gridspec = fig.add_gridspec(2, 1, height_ratios=[1, 1])
 
             # 子圖 A：lateral offset vs time
             ax1 = fig.add_subplot(gridspec[0, 0])
@@ -2159,104 +2130,15 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
             ax1.legend(fontsize=9)
             self._apply_limits(ax1, ylim=lat_ylim)
 
-            # 子圖 B：FFT / PSD（走路區段，dB）
+            # 子圖 B：θ(t)
             ax2 = fig.add_subplot(gridspec[1, 0])
-            if fft_res and fft_res.f.size:
-                # 轉成 dB：10*log10(PSD)
-                Pxx = np.asarray(fft_res.Pxx, dtype=float)
-                eps = float(np.finfo(float).tiny)
-                Pxx_clipped = np.clip(Pxx, eps, None)
-                Pxx_db = 10.0 * np.log10(Pxx_clipped)
-
-                ax2.plot(
-                    fft_res.f,
-                    Pxx_db,
-                    label="PSD of lat(t) — walking segment (dB)",
-                )
-
-                # 標註主峰頻率與其 dB 值
-                if (
-                    np.isfinite(fft_res.f_peak)
-                    and fft_res.f_peak > 0
-                    and np.isfinite(getattr(fft_res, "p_peak", np.nan))
-                    and fft_res.p_peak > 0
-                ):
-                    p_peak_db = 10.0 * np.log10(max(fft_res.p_peak, eps))
-
-                    # 垂直線 + 樣本點
-                    ax2.axvline(
-                        fft_res.f_peak,
-                        linestyle="--",
-                        linewidth=1,
-                        label=f"peak ≈ {fft_res.f_peak:.2f} Hz",
-                    )
-                    if show_samples:
-                        ax2.plot(
-                            fft_res.f_peak,
-                            p_peak_db,
-                            linestyle="none",
-                            marker="o",
-                            label="peak sample",
-                        )
-
-                    # 在 peak 點上方標註頻率與 dB
-                    xmin, xmax = fft_band
-                    xspan = xmax - xmin
-                    left_zone = xmin + 0.2 * xspan
-                    right_zone = xmax - 0.2 * xspan
-
-                    # 預設：文字在點的右上方
-                    dx = 10
-                    ha = "left"
-
-                    # 如果 peak 在中間，就置中
-                    if left_zone < fft_res.f_peak < right_zone:
-                        dx = 0
-                        ha = "center"
-                    # 如果 peak 很靠右，就把文字放左邊
-                    elif fft_res.f_peak >= right_zone:
-                        dx = -10
-                        ha = "right"
-
-                    ax2.annotate(
-                        f"{fft_res.f_peak:.2f} Hz\n{p_peak_db:.1f} dB",
-                        xy=(fft_res.f_peak, p_peak_db),
-                        xytext=(dx, 10),
-                        textcoords="offset points",
-                        ha=ha,
-                        va="bottom",
-                        fontsize=9,
-                        bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.8),
-                        arrowprops=dict(arrowstyle="->", lw=0.8),
-                        clip_on=True,
-                    )
-
-                # 自動給一個合理的 y 範圍，避免整條線被裁掉
-                if psd_ylim is None:
-                    y_min = float(np.nanmin(Pxx_db))
-                    y_max = float(np.nanmax(Pxx_db))
-                    if np.isfinite(y_min) and np.isfinite(y_max):
-                        margin = max(3.0, 0.1 * (y_max - y_min + 1e-6))
-                        ax2.set_ylim(y_min - margin, y_max + margin)
-                else:
-                    self._apply_limits(ax2, ylim=psd_ylim)
-
-            ax2.set_title("FFT / PSD of lateral offset (walking segment, dB)")
-            ax2.set_xlabel("frequency (Hz)")
-            ax2.set_ylabel("power spectral density (dB)")
-            ax2.grid(True, alpha=0.35)
-            ax2.set_xlim(fft_band[0], fft_band[1])
-            ax2.legend(fontsize=9)
-
-            # 子圖 C：θ(t)
-            ax3 = fig.add_subplot(gridspec[2, 0])
-            ax3.plot(
+            ax2.plot(
                 t_rel,
                 theta_rel,
                 label=r"θ(t) (deg) — per-lap relative",
             )
             if show_samples:
-                ax3.plot(
+                ax2.plot(
                     t_rel[sample_idx],
                     theta_rel[sample_idx],
                     linestyle="none",
@@ -2266,14 +2148,14 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
             # 畫出錐區與椅區的轉彎區塊底色
             draw_turn_region(
-                ax3,
+                ax2,
                 t_rel,
                 tc_start_rel,
                 tc_end_rel,
                 label="cone turn (existing)",
             )
             draw_turn_region(
-                ax3,
+                ax2,
                 t_rel,
                 th_start_rel,
                 th_end_rel,
@@ -2281,7 +2163,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
             )
 
             # 以圈起點為 0° 的參考線
-            ax3.axhline(0.0, linestyle="--", linewidth=1, label="0° at lap start")
+            ax2.axhline(0.0, linestyle="--", linewidth=1, label="0° at lap start")
 
             # 標出「轉彎方向」和「Δθ」資訊
             cone_dir = lap.turn_cone_dir
@@ -2301,11 +2183,11 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
                 f"chair turn: dir={dir_str(chair_dir)}, Δθ≈{dtheta_chair:.1f}°",
             ]
 
-            ax3.text(
+            ax2.text(
                 0.02,
                 0.98,
                 "\n".join(info_lines),
-                transform=ax3.transAxes,
+                transform=ax2.transAxes,
                 va="top",
                 ha="left",
                 fontsize=9,
@@ -2316,18 +2198,18 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
                 ),
             )
 
-            ax3.set_title(
+            ax2.set_title(
                 "θ vs. t (pelvis heading, stable-unwrapped, relative to lap start)"
             )
-            ax3.set_xlabel("time (s)")
-            ax3.set_ylabel(r"Δθ (deg)")
-            ax3.grid(True, alpha=0.35)
-            ax3.margins(x=0.02)
-            ax3.legend(fontsize=9)
+            ax2.set_xlabel("time (s)")
+            ax2.set_ylabel(r"Δθ (deg)")
+            ax2.grid(True, alpha=0.35)
+            ax2.margins(x=0.02)
+            ax2.legend(fontsize=9)
 
             # 這一圈用自己的 theta_ylim（可能從多個候選中挑出來）
             theta_ylim_this_lap = self._resolve_theta_ylim_for_lap(theta_ylim, theta_rel)
-            self._apply_limits(ax3, ylim=theta_ylim_this_lap)
+            self._apply_limits(ax2, ylim=theta_ylim_this_lap)
 
             out_path = Path(self.out_dir) / save_name_template.format(
                 lap_idx=lap_idx + 1

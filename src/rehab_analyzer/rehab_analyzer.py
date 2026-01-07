@@ -1,6 +1,6 @@
-"""Backward-compatible facade for rehab analyzer.
+"""rehab_analyzer 模組的向後相容 facade。
 
-The implementation was split into smaller modules for maintainability.
+實作已拆分成多個小模組以便維護。
 """
 
 from .entities import (

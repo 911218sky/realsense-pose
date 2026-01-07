@@ -1,9 +1,9 @@
-"""Entities (dataclasses) used by `rehab_analyzer`.
+"""rehab_analyzer 模組的資料結構定義。
 
-本檔案放「對外/跨模組傳遞」的資料結構（entities），重點是：
-- **語意清楚**：每個欄位都要能快速知道是什麼、單位是什麼。
-- **可序列化**：大多提供 `to_dict()` 方便 API/CLI/前端 JSON 使用。
-- **避免混雜業務邏輯**：這裡只放資料結構，不放計算流程。
+這裡集中放所有「對外傳遞」的 dataclass，設計原則：
+- 欄位命名要能一眼看懂是什麼、單位是什麼
+- 都有 to_dict() 方便轉 JSON 給 API 或前端用
+- 只放資料結構，不放計算邏輯
 """
 
 import numpy as np

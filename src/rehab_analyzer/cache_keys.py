@@ -1,4 +1,4 @@
-"""Cache key helpers used by `cachetools.cachedmethod`."""
+"""cachedmethod 的 cache key 工具。"""
 
 import numpy as np
 from cachetools.keys import hashkey

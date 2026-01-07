@@ -1,4 +1,4 @@
-"""Lap detection and path/velocity series utilities."""
+"""圈數偵測與路徑/速度序列工具。"""
 
 from functools import partial
 from operator import attrgetter
