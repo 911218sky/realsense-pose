@@ -1,8 +1,8 @@
 import os
-from typing import Dict, List, Type
+from typing import Any, Dict, List, Type
 
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 
 from logger import setup_logger
 
@@ -12,7 +12,7 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://root:4I0rsokkcCICZNMx@localhost:27
 MONGO_DB = os.getenv("MONGO_DB", "nycu_rehab")
 DB_NAME = os.getenv("DB_NAME", "nycu_rehab")
 
-DB: Dict[str, AsyncIOMotorClient] = {}
+DB: Dict[str, AsyncMongoClient] = {}
 
 
 async def _ensure_ttl_index(
@@ -33,7 +33,9 @@ async def _ensure_ttl_index(
     target_name = f"{field}_ttl"
 
     try:
-        indexes = await col.list_indexes().to_list(length=None)
+        indexes = []
+        async for idx in col.list_indexes():
+            indexes.append(idx)
     except Exception as e:
         logger.warning("Could not list indexes for %s: %s", collection, e, exc_info=False)
         return
@@ -115,8 +117,8 @@ async def get_db(
     db_name: str = DB_NAME,
     document_models: List[Type] = [],
     timeout_ms: int = 5000,
-) -> AsyncIOMotorClient:
-    """Get Motor client by name (lazy init)."""
+) -> AsyncMongoClient:
+    """Get PyMongo Async client by name (lazy init)."""
     try:
         if db_name not in DB:
             logger.info("Initializing DB %s...", db_name)
@@ -134,9 +136,10 @@ async def get_db(
         ) from None
 
 
-async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> AsyncIOMotorClient:
-    """Init Motor client and Beanie, with basic validation and TTL index prep."""
-    client = AsyncIOMotorClient(
+async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> AsyncMongoClient:
+    """Init PyMongo Async client and Beanie, with basic validation and TTL index prep."""
+    # PyMongo Async (Beanie 2.0 推薦的方式)
+    client: AsyncMongoClient[Any] = AsyncMongoClient(
         MONGO_URI,
         serverSelectionTimeoutMS=timeout_ms,
         connectTimeoutMS=timeout_ms,
@@ -152,7 +155,7 @@ async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> As
         logger.info("Mongo ping OK.")
     except Exception as e:
         try:
-            client.close()
+            await client.close()
         except Exception:
             pass
         logger.error("MongoDB ping failed: %s", e, exc_info=False)
@@ -169,7 +172,7 @@ async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> As
         logger.info("Beanie init_beanie completed.")
     except Exception as e:
         try:
-            client.close()
+            await client.close()
         except Exception:
             pass
         logger.error("init_beanie failed: %s", e, exc_info=False)
@@ -182,9 +185,7 @@ async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> As
         logger.info("DB & Beanie ready.")
     except Exception as e:
         logger.error("Post-init validation failed: %s", e, exc_info=False)
-        client.close()
+        await client.close()
         raise RuntimeError("Database initialization failed during validation.") from None
 
     return client
-
-
