@@ -1,3 +1,5 @@
+"""HMAC 簽章驗證。"""
+
 import hashlib
 import hmac
 import json
@@ -13,14 +15,13 @@ from api.utils.env import env_bool
 
 VERSION = "v1"
 
-# 解析環境變數 AUTH_CLIENT_SECRETS
-def _parse_client_secrets(raw: Optional[str]) -> Dict[str, str]:
-    """
-    解析環境變數 AUTH_CLIENT_SECRETS。
 
-    支援格式：
+def _parse_client_secrets(raw: Optional[str]) -> Dict[str, str]:
+    """解析 AUTH_CLIENT_SECRETS 環境變數。
+
+    支援 JSON 或 CSV 格式：
     - JSON: {"flutter":"secret","deviceA":"secret2"}
-    - CSV 鍵值對：flutter=secret,deviceA=secret2
+    - CSV: flutter=secret,deviceA=secret2
     """
     raw = (raw or "").strip()
     if not raw:
@@ -56,33 +57,28 @@ def _parse_client_secrets(raw: Optional[str]) -> Dict[str, str]:
 
 @dataclass(frozen=True)
 class AuthSettings:
-    enabled: bool                  # 是否啟用簽章驗證
-    client_secrets: Dict[str, str] # 用戶端ID與對應密鑰字典
-    client_secret_bytes: Dict[str, bytes] # 用戶端ID與對應密鑰 (bytes 格式) 字典
-    nonce_ttl_seconds: int         # nonce 有效存活（防重放攻擊）秒數
-    max_body_bytes: int            # 請求 body 允許最大位元組數
-    exempt_paths: Tuple[str, ...]  # 免驗證簽章之路徑列表
-    timestamp_tolerance_seconds: int  # 時間戳容許偏差秒數（防爬蟲）
+    """認證設定。"""
+    enabled: bool
+    client_secrets: Dict[str, str]
+    client_secret_bytes: Dict[str, bytes]
+    nonce_ttl_seconds: int
+    max_body_bytes: int
+    exempt_paths: Tuple[str, ...]
+    timestamp_tolerance_seconds: int
+
 
 def _load_settings() -> AuthSettings:
-    # 是否啟用認證
+    """載入認證設定。"""
     enabled = env_bool("AUTH_ENABLED", True)
-    # 客戶端密鑰
     client_secrets = _parse_client_secrets(os.getenv("AUTH_CLIENT_SECRETS", ""))
     client_secret_bytes = {k: v.encode("utf-8") for k, v in client_secrets.items()}
-    # 非重放 nonce 過期時間多少秒
     nonce_ttl_seconds = int(os.getenv("AUTH_NONCE_TTL_SECONDS", "60"))
-    # 限制可簽章的 body 大小（bytes）。0 代表不限制。
     max_body_bytes = int(os.getenv("AUTH_MAX_BODY_BYTES", "0") or "0")
-    # 免認證路徑
     exempt_paths_raw = (os.getenv("AUTH_EXEMPT_PATHS", "") or "").strip()
-    # 免認證路徑列表
     exempt_paths = tuple(p.strip() for p in exempt_paths_raw.split(",") if p.strip())
-    # 時間戳容許偏差（防爬蟲）：0 表示關閉時間戳檢查 (預設 30 秒)
     timestamp_tolerance_seconds = int(
         os.getenv("AUTH_TIMESTAMP_TOLERANCE_SECONDS", "30")
     )
-    # 認證設定
     return AuthSettings(
         enabled=enabled,
         client_secrets=client_secrets,
@@ -96,7 +92,7 @@ def _load_settings() -> AuthSettings:
 
 _SETTINGS = _load_settings()
 
-# 生成正規化字串
+
 def _canonical_string(
     *,
     method: str,
@@ -107,32 +103,29 @@ def _canonical_string(
     body_sha256: str,
     version: str = VERSION,
 ) -> str:
-    # 重要：此規格必須保持穩定並文件化；客戶端需要 100% 一致才能驗簽成功。
-    # 使用換行避免字串拼接歧義。
+    """生成正規化字串，客戶端需 100% 一致才能驗簽成功。"""
     path_with_query = path if not query else f"{path}?{query}"
     return "\n".join([version, method.upper(), path_with_query, nonce, timestamp, body_sha256])
 
-# 計算 SHA256 雜湊值
+
 def _sha256_hex(data: bytes) -> str:
+    """計算 SHA256 hex。"""
     return hashlib.sha256(data).hexdigest()
 
-# 計算 HMAC-SHA256 簽章
+
 def _hmac_sha256_digest(secret: bytes, msg: str) -> bytes:
+    """計算 HMAC-SHA256。"""
     mac = hmac.new(secret, msg.encode("utf-8"), hashlib.sha256)
     return mac.digest()
 
-# 未授權錯誤
+
 def _unauthorized(detail: str) -> HTTPException:
-    # 保持 status code 一致，方便客戶端處理
+    """回傳 401 錯誤。"""
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
-# 檢查時間戳是否在允許範圍內
 def _check_timestamp(timestamp_str: str) -> None:
-    """
-    驗證時間戳是否在容許的時間窗口內（防爬蟲）。
-    時間戳必須是 Unix 時間戳（秒），可為整數或浮點數字串。
-    """
+    """驗證時間戳是否在容許範圍內。"""
     if _SETTINGS.timestamp_tolerance_seconds <= 0:
         # 設為 0 或負數表示關閉時間戳檢查
         return
@@ -148,24 +141,19 @@ def _check_timestamp(timestamp_str: str) -> None:
     if diff > _SETTINGS.timestamp_tolerance_seconds:
         raise _unauthorized("timestamp expired or too far in future")
 
-# 檢查 nonce 並存入 Redis
+
 async def _check_and_store_nonce(request: Request, client_id: str, nonce: str) -> None:
-    """
-    防止重放攻擊：確保 (client_id, nonce) 在 TTL 內只能使用一次。
-    僅使用 Redis（不使用本機記憶體備援）。
-    """
+    """防重放：確保 (client_id, nonce) 在 TTL 內只能使用一次。"""
     key = f"auth:nonce:{client_id}:{nonce}"
 
     redis: Optional[aioredis.Redis] = getattr(request.app.state, "redis", None)
     if redis is None:
-        # 不提供本機備援：沒有 Redis 就直接拒絕（fail closed）
         raise _unauthorized("auth nonce check failed (redis missing)")
 
     try:
-        # 設定 nonce 過期時間
         ok = await redis.set(key, "1", ex=_SETTINGS.nonce_ttl_seconds, nx=True)
     except Exception:
-        # 若 Redis 存在但故障：採「失敗即拒絕」(fail closed)，因為這是安全機制。
+        # Redis 故障時採 fail closed
         raise _unauthorized("auth nonce check failed")
     if not ok:
         raise _unauthorized("replay detected (nonce already used)")
@@ -173,20 +161,19 @@ async def _check_and_store_nonce(request: Request, client_id: str, nonce: str) -
 
 
 async def require_signed_headers(request: Request) -> None:
-    """
-    FastAPI 相依性 (dependency)：使用請求標頭 (headers) 內的 HMAC 簽章驗證客戶端身份。
+    """FastAPI dependency：驗證 HMAC 簽章。
 
     必要 headers：
     - X-Client-Id
-    - X-Nonce             (隨機字串；建議 UUIDv4)
-    - X-Timestamp         (Unix 時間戳，秒；防爬蟲）
-    - X-Signature         (hex HMAC-SHA256)
-    - X-Signature-Version (選用；預設 VERSION)
+    - X-Nonce (建議 UUIDv4)
+    - X-Timestamp (Unix 秒)
+    - X-Signature (hex HMAC-SHA256)
+    - X-Signature-Version (選用)
     """
     if not _SETTINGS.enabled:
         return
 
-    # 放行 CORS 預檢（preflight）：瀏覽器在預檢階段不會帶自訂 headers。
+    # 放行 CORS preflight
     if request.method.upper() == "OPTIONS":
         return
 
@@ -201,29 +188,23 @@ async def require_signed_headers(request: Request) -> None:
     signature = (request.headers.get("x-signature") or "").strip()
     version = (request.headers.get("x-signature-version") or VERSION).strip()
 
-    # 檢查必要 headers
     if not client_id or not nonce or not timestamp or not signature:
         raise _unauthorized("missing auth headers")
 
-    # 檢查時間戳是否在允許範圍內（防爬蟲）
     _check_timestamp(timestamp)
 
-    # 檢查客戶端密鑰
     secret_bytes = _SETTINGS.client_secret_bytes.get(client_id)
     if not secret_bytes:
         raise _unauthorized("unknown client_id")
 
-    # 在做較重的工作前先擋掉重放
+    # 先擋重放再做較重的工作
     await _check_and_store_nonce(request, client_id, nonce)
 
-    # 計算 body hash：
-    # - 若前面 middleware 解壓了 gzip，會把「壓縮前的 raw bytes」放在 request.state.raw_body
-    # - 先用 raw bytes 驗簽（與實際傳輸一致）；若失敗再用解壓後 bytes 嘗試一次（相容不同前端流程）
+    # 計算 body hash：若 middleware 解壓了 gzip，raw bytes 在 request.state.raw_body
     raw_body: Optional[bytes] = getattr(request.state, "raw_body", None)
     body_for_sig = raw_body
 
     if body_for_sig is None:
-        # 沒有 middleware 介入時，直接用 request.body()
         body_for_sig = await request.body()
 
     if _SETTINGS.max_body_bytes and len(body_for_sig) > _SETTINGS.max_body_bytes:
@@ -231,7 +212,6 @@ async def require_signed_headers(request: Request) -> None:
 
     body_sha256 = _sha256_hex(body_for_sig)
 
-    # 生成正規化字串
     msg = _canonical_string(
         method=request.method,
         path=request.url.path,
@@ -243,7 +223,6 @@ async def require_signed_headers(request: Request) -> None:
     )
     expected = _hmac_sha256_digest(secret_bytes, msg)
 
-    # 驗證簽章（hex）
     sig_ok = False
     try:
         sig_bytes = bytes.fromhex(signature)
@@ -251,7 +230,7 @@ async def require_signed_headers(request: Request) -> None:
     except Exception:
         sig_ok = False
 
-    # 若有 gzip middleware，且 raw 驗簽失敗，改用「解壓後 bytes」再試一次（相容）
+    # 若有 gzip middleware 且 raw 驗簽失敗，改用解壓後 bytes 再試一次
     if not sig_ok and raw_body is not None:
         try:
             body_plain = await request.body()

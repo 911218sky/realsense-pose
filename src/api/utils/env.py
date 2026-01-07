@@ -1,12 +1,12 @@
+"""環境變數工具。"""
+
 import os
 
-def env_bool(name: str, default: bool = False) -> bool:
-    """
-    Parse boolean env vars robustly.
 
-    Notes:
-    - bool("0") is True in Python, so we must not use `bool(os.getenv(...))`.
-    - Accept common truthy/falsy strings.
+def env_bool(name: str, default: bool = False) -> bool:
+    """解析布林環境變數。
+    
+    Python 的 bool("0") 是 True，所以不能直接用 bool(os.getenv(...))。
     """
     raw = os.getenv(name)
     if raw is None:
@@ -20,6 +20,7 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def env_csv(name: str) -> list[str]:
+    """解析逗號分隔的環境變數為 list。"""
     raw = os.getenv(name, "")
     items = [x.strip() for x in raw.split(",")]
     return [x for x in items if x]

@@ -1,8 +1,4 @@
-"""
-API auth package.
-
-This package groups authentication-related utilities for easier maintenance.
-"""
+"""API auth 模組。"""
 
 from .signed_headers import require_signed_headers
 
