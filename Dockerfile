@@ -12,8 +12,8 @@ WORKDIR /app
 
 ARG CLEAN_VENV=0
 
-# Copy uv binary directly (skip pip install = faster)
-COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /usr/local/bin/uv
+# Copy uv binary directly
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 RUN python -m venv /opt/venv
 
