@@ -24,6 +24,16 @@ progress_interval: 200
 # 說明：提升該值通常會增加處理時間與資源使用。
 model_complexity: 1
 
+# 解析度設定（預設使用 1280x720 以獲得更好的姿態估計精度）
+# 注意：實際解析度會從 bag 檔案中讀取，這些值僅作為初始預設值
+# 支援的解析度：1920x1080 @ 30fps, 1280x720 @ 30fps, 640x480 @ 30/60fps
+# width: 640
+# height: 480
+# fps: 30
+
+# 若為 true，載入 bag 初始化 pipeline 時會列印 bag 的完整 streams / 格式 / 內參等資訊（除錯用）
+dump_bag_info: false
+
 # 偵測信心閥值（浮點 0.0 ~ 1.0）
 # 說明：低於該值的偵測結果會被視為不可靠並被濾掉。提高可減少誤偵測，但可能漏掉弱偵測。
 min_detection_confidence: 0.5
