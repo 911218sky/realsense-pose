@@ -64,5 +64,8 @@ logs/
 .cursor/
 .cursorignore
 
+# Kiro specs (keep local only)
+.kiro/specs/
+
 # API md
 FRONTEND_API_CHANGES.md
