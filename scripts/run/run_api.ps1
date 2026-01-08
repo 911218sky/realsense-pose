@@ -1,7 +1,7 @@
 . (Join-Path $PSScriptRoot '..\common.ps1')
 
 $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 
 Write-Host "[INFO] Repo: $ProjectRoot"
 
@@ -16,9 +16,12 @@ Write-Host ""
 Start-Sleep -Milliseconds 100
 
 try {
-  Invoke-CondaRun -VenvPath $VenvPath -Args @(
+  Invoke-VenvRun -VenvPath $VenvPath -Args @(
     'uvicorn', 'api.main:app',
     '--reload',
+    '--reload-exclude', '.venv',
+    '--reload-exclude', 'venv',
+    '--reload-exclude', '__pycache__',
     '--app-dir', './src',
     '--port', $Port,
     '--host', $HostName
@@ -28,5 +31,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

@@ -21,30 +21,30 @@ $Excludes = @(
 )
 $Collect = @('--collect-data', 'mediapipe')
 
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 
 try {
   # Ensure PyInstaller exists
   try {
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('pyinstaller', '--version')
+    Invoke-VenvRun -VenvPath $VenvPath -Args @('-m', 'PyInstaller', '--version')
   } catch {
     Write-Host 'PyInstaller not installed, installing now...'
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'pyinstaller')
+    & uv pip install --python $VenvPath -U pyinstaller
   }
 
   Write-Host "Packaging with PyInstaller, target: $Entry"
   Write-Host ''
 
-  $pyiArgs = @('pyinstaller', $ModeFlag) + $PyiFlags + @(
+  $pyiArgs = @('-m', 'PyInstaller', $ModeFlag) + $PyiFlags + @(
     '--name', 'cli'
   ) + $Excludes + $Collect + @(
     '--distpath', $OutputDir,
     $Entry
   )
-  Invoke-CondaRun -VenvPath $VenvPath -Args $pyiArgs
+  Invoke-VenvRun -VenvPath $VenvPath -Args $pyiArgs
 
   Write-Host ''
-  Write-Host "✅ Done! Output in $OutputDir"
+  Write-Host "Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
@@ -54,5 +54,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

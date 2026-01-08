@@ -2,7 +2,7 @@
 
 $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
 
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 $OutputFile = 'requirements.txt'
 
 $IgnoreList = @(
@@ -24,11 +24,11 @@ try {
   Write-Host "Ignoring directories: $IgnoreString"
   Write-Host ''
 
-  # Check pipreqs availability (try running help)
-  $rc = Try-CondaRun -VenvPath $VenvPath -Args @('pipreqs', '--help')
+  # Check pipreqs availability
+  $rc = Try-VenvRun -VenvPath $VenvPath -Args @('-m', 'pipreqs', '--help')
   if ($rc -ne 0) {
     Write-Host 'pipreqs not installed, installing now...'
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', 'pipreqs')
+    & uv pip install --python $VenvPath pipreqs
   } else {
     Write-Host 'pipreqs already installed'
   }
@@ -36,8 +36,8 @@ try {
   Write-Host ''
   Write-Host 'Running pipreqs, this may take a moment...'
 
-  $rc = Try-CondaRun -VenvPath $VenvPath -Args @(
-    'pipreqs', '.\src',
+  $rc = Try-VenvRun -VenvPath $VenvPath -Args @(
+    '-m', 'pipreqs.pipreqs', '.\src',
     '--encoding=utf-8-sig',
     '--ignore', $IgnoreString,
     '--mode', 'compat',
@@ -45,15 +45,7 @@ try {
     '--savepath', $OutputFile
   )
   if ($rc -ne 0) {
-    Write-Host 'pipreqs execution failed, trying with python -m pipreqs...'
-    Invoke-CondaRun -VenvPath $VenvPath -Args @(
-      'python', '-m', 'pipreqs', '.\src',
-      '--encoding=utf-8-sig',
-      '--ignore', $IgnoreString,
-      '--mode', 'compat',
-      '--force',
-      '--savepath', $OutputFile
-    )
+    throw "pipreqs execution failed"
   }
 
   if (Test-Path $OutputFile) {
@@ -65,7 +57,7 @@ try {
     Get-Content $OutputFile
     Write-Host '===================='
     Write-Host ''
-    Write-Host "Tip: To install dependencies, run: pip install -r $OutputFile"
+    Write-Host "Tip: To install dependencies, run: uv pip install -r $OutputFile"
     exit 0
   }
 
@@ -78,5 +70,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

@@ -7,26 +7,26 @@ $Entry = Join-Path 'src' 'cli.py'
 $ModeFlag = @('--standalone')
 $env:NUITKA_CACHE_DIR = (Join-Path $ProjectRoot '_nuitka_cache')
 
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 
 try {
   # Ensure Nuitka exists
   try {
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'nuitka', '--version')
+    Invoke-VenvRun -VenvPath $VenvPath -Args @('-m', 'nuitka', '--version')
   } catch {
     Write-Host 'Nuitka not installed, installing now...'
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'nuitka')
+    & uv pip install --python $VenvPath -U nuitka
   }
 
   # Resolve mediapipe modules path
-  $mpPkg = Get-CondaOutput -VenvPath $VenvPath -Args @(
-    'python', '-c',
+  $mpPkg = Get-VenvOutput -VenvPath $VenvPath -Args @(
+    '-c',
     'import mediapipe, pathlib; print(pathlib.Path(mediapipe.__file__).resolve().parent)'
   )
   $mpModules = Join-Path $mpPkg 'modules'
 
   Write-Host 'Compiling (MinGW64)...'
-  $nuitkaArgs = @('python', '-m', 'nuitka') + $ModeFlag + @(
+  $nuitkaArgs = @('-m', 'nuitka') + $ModeFlag + @(
     '--mingw64',
     '--jobs=-1',
     '--lto=no',
@@ -39,10 +39,10 @@ try {
     "--include-data-files=$mpModules\pose_landmark\*.binarypb=mediapipe/modules/pose_landmark/",
     $Entry
   )
-  Invoke-CondaRun -VenvPath $VenvPath -Args $nuitkaArgs
+  Invoke-VenvRun -VenvPath $VenvPath -Args $nuitkaArgs
 
   Write-Host ''
-  Write-Host "✅ Done! Output in $OutputDir"
+  Write-Host "Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
@@ -52,5 +52,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-
