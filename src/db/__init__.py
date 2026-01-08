@@ -5,6 +5,7 @@ from .mongo.models import (
     AdminInvitation,
     AdminSession,
     BagFile,
+    CohortBenchmark,
     DiagnosisInfo,
     LifestyleInfo,
     MedicalHistoryInfo,
@@ -25,6 +26,7 @@ __all__ = [
     # helpers
     "generate_code",
     # models
+    "CohortBenchmark",
     "DiagnosisInfo",
     "LifestyleInfo",
     "MedicalHistoryInfo",

@@ -7,6 +7,14 @@ Keep a single import surface for API layers:
 
 from .admin import AdminAccount, AdminInvitation, AdminSession
 from .bag_files import BagFile
+from .cohort_benchmark import (
+    CohortBenchmark,
+    GaitBenchmarkEmbed,
+    LapTimeBenchmarkEmbed,
+    PercentileStatsEmbed,
+    SpeedDistanceBenchmarkEmbed,
+    TurnBenchmarkEmbed,
+)
 from .realsense_extract_job import RealsenseExtractJob
 from .realsense_pose_extractor import RealsensePoseExtractor
 from .user_profile import (
@@ -33,4 +41,10 @@ __all__ = [
     "AdminInvitation",
     "AdminSession",
     "BagFile",
+    "CohortBenchmark",
+    "GaitBenchmarkEmbed",
+    "LapTimeBenchmarkEmbed",
+    "PercentileStatsEmbed",
+    "SpeedDistanceBenchmarkEmbed",
+    "TurnBenchmarkEmbed",
 ]
