@@ -74,6 +74,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          no-cache: true
+          build-args: |
+            WEB_CACHE_BUST=${{ github.run_id }}
+          cache-from: type=registry,ref=${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}:buildcache,mode=max,compression=zstd,compression-level=3,force-compression=true
           provenance: false
           sbom: false

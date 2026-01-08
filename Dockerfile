@@ -32,11 +32,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ============================================
 FROM alpine:3.20 AS web-downloader
 
+# ARG to bust cache when we want fresh download
+ARG WEB_CACHE_BUST=1
+
 RUN apk add --no-cache curl jq unzip
 
 WORKDIR /web
 
-RUN DOWNLOAD_URL=$(curl -sf https://api.github.com/repos/911218sky/gait-charts/releases/latest \
+RUN echo "Cache bust: $WEB_CACHE_BUST" \
+ && DOWNLOAD_URL=$(curl -sf https://api.github.com/repos/911218sky/gait-charts/releases/latest \
       | jq -r '.assets[] | select(.name | startswith("GaitCharts-Web-")) | .browser_download_url') \
  && echo "Downloading: $DOWNLOAD_URL" \
  && curl -fL -o web.zip "$DOWNLOAD_URL" \
