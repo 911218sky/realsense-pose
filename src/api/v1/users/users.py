@@ -195,12 +195,15 @@ async def get_cohort_stats() -> CohortStatsResponse:
         {"$sort": {"count": -1, "_id": -1}},
     ]
 
-    results = await UserProfile.aggregate(pipeline).to_list()
+    try:
+        results = await UserProfile.aggregate(pipeline).to_list()
+        return CohortStatsResponse(
+            cohorts=[CohortStatItem(cohort=r["_id"], user_count=r["count"]) for r in results],
+            total_cohorts=len(results),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
-    return CohortStatsResponse(
-        cohorts=[CohortStatItem(cohort=r["_id"], user_count=r["count"]) for r in results],
-        total_cohorts=len(results),
-    )
 
 
 @router.get("/search", response_model=UserSearchSuggestionResponse)
@@ -427,17 +430,11 @@ async def link_user_to_session(user_code: str, payload: LinkSessionRequest) -> U
     if not session:
         raise HTTPException(status_code=404, detail="session not found")
 
-    # 檢查此 bag 是否已被其他使用者綁定（一個 bag 只能綁定一個使用者）
-    # 使用 bag_filename 檢查（比 bag_hash 更可靠，因為 bag_filename 一定有值）
-    existing_binding = await RealsensePoseExtractor.find_one(
-        RealsensePoseExtractor.bag_filename == session.bag_filename,
-        RealsensePoseExtractor.user_code != None,
-        RealsensePoseExtractor.user_code != user_code,
-    )
-    if existing_binding:
+    # 檢查此 session 是否已被其他使用者綁定（一個 session 只能綁定一個使用者）
+    if session.user_code and session.user_code != user_code:
         raise HTTPException(
             status_code=409,
-            detail=f"bag is already linked to another user: {existing_binding.user_code}",
+            detail=f"session is already linked to another user: {session.user_code}",
         )
 
     # 執行綁定
