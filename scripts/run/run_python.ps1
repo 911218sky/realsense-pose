@@ -1,12 +1,12 @@
 . (Join-Path $PSScriptRoot '..\common.ps1')
 
 $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 
 try {
   # This matches the legacy hardcoded example in run_python.bat
-  Invoke-CondaRun -VenvPath $VenvPath -Args @(
-    'python', 'src/cli.py', 'analyze',
+  Invoke-VenvRun -VenvPath $VenvPath -Args @(
+    'src/cli.py', 'analyze',
     '--npy', './outputs/1_1_1031/1_1_1031_pose.npy',
     '--output', './outputs/1_1_1031',
     '--tag', '1_1_1031',
@@ -17,5 +17,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

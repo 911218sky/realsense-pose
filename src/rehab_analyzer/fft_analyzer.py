@@ -1,4 +1,4 @@
-"""Frequency / spatial spectrum analysis helpers."""
+"""頻率/空間頻譜分析工具。"""
 
 import math
 from functools import partial

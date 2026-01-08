@@ -1,6 +1,4 @@
-"""
-API middlewares package.
-"""
+"""API middlewares 模組。"""
 
 from .payload_decode import PayloadDecodeMiddleware
 

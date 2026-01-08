@@ -5,7 +5,7 @@
   "version": "1",
   "when": {
     "type": "fileSaved",
-    "glob": "{src/api/v1/**/*.py,src/db/**/*.py}"
+    "glob": "src/api/**/*.py"
   },
   "then": {
     "type": "askAgent",

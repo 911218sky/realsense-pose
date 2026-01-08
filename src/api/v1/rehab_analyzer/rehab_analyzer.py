@@ -29,13 +29,13 @@ from api.v1.rehab_analyzer.utils import resolve_session_npy_path, select_peak_in
 from config import load_config
 from logger import setup_logger
 from rehab_analyzer.rehab_analyzer import RehabilitationSessionAnalyzer
-from rehab_analyzer.entities import DetectLapsResult, OffsetFFTResult
+from rehab_analyzer.entities import DetectLapsResult
 
 default_config = load_config(mode="analyzer")
 
 router = APIRouter(
-    prefix="/rehab_analyzer",
-    tags=["rehab_analyzer"]
+    prefix="/rehab-analyzer",
+    tags=["rehab-analyzer"]
 )
 
 logger = setup_logger("api.v1.rehab_analyzer")
@@ -121,8 +121,8 @@ async def per_lap_offset(
     config: Optional[PerLapOffsetRequest] = Body(None),
 ) -> PerLapOffsetResponse:
     """
-    與 visualizer.save_per_lap_offset 使用相同公式計算每圈 lateral offset / FFT / heading。
-    回傳 JSON 給前端畫三個子圖用。
+    與 visualizer.save_per_lap_offset 使用相同公式計算每圈 lateral offset / heading。
+    回傳 JSON 給前端畫兩個子圖用。
     """
     
     config = config or PerLapOffsetRequest()
@@ -203,34 +203,6 @@ async def per_lap_offset(
         if walk_end_rel < walk_start_rel:
             walk_start_rel, walk_end_rel = walk_end_rel, walk_start_rel
 
-        # 只用走路區段做 FFT（走路區段定義同 visualizer）
-        lat_fft = lat_rel[walk_start_rel : walk_end_rel + 1]
-        t_fft = t_rel[walk_start_rel : walk_end_rel + 1]
-
-        fft_res = analyzer.compute_lateral_offset_fft(
-            lat=lat_fft,
-            t=t_fft,
-            band=config.fft_band,
-        )
-
-        # 把 PSD 轉成 dB，跟 visualizer 裡邏輯一致
-        f = np.asarray(fft_res.f, dtype=float)
-        Pxx = np.asarray(fft_res.Pxx, dtype=float)
-        if f.size:
-            eps = float(np.finfo(float).tiny)
-            Pxx_clipped = np.clip(Pxx, eps, None)
-            Pxx_db = 10.0 * np.log10(Pxx_clipped)
-        else:
-            Pxx_db = np.array([], dtype=float)
-
-        peak_freq = float(getattr(fft_res, "f_peak", float("nan")))
-        peak_power = float(getattr(fft_res, "p_peak", float("nan")))
-        peak_db = (
-            float(10.0 * np.log10(max(peak_power, float(np.finfo(float).tiny))))
-            if np.isfinite(peak_power) and peak_power > 0
-            else float("nan")
-        )
-
         laps_payload.append(
             {
                 "lap_index": lap_idx,
@@ -253,15 +225,6 @@ async def per_lap_offset(
                 "walk_region": {
                     "start_idx": int(walk_start_rel),
                     "end_idx": int(walk_end_rel),
-                },
-                # FFT / PSD 給 UI 畫頻譜
-                "fft": {
-                    "band": list(config.fft_band),
-                    "freq_hz_f32_zlib_b64": pack_1d_f32_zlib_b64(f),
-                    "psd_db_f32_zlib_b64": pack_1d_f32_zlib_b64(Pxx_db),
-                    "peak_freq_hz": peak_freq,
-                    "peak_power": peak_power,
-                    "peak_db": peak_db,
                 },
             }
         )

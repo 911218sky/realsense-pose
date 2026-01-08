@@ -1,7 +1,7 @@
 . (Join-Path $PSScriptRoot '..\common.ps1')
 
 $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 $Compose = Get-ComposeCmd
 
 function Ensure-EnvFile {
@@ -70,8 +70,6 @@ try {
   }
 
   Write-Host '[INFO] Ensuring Mongo+Redis are running (docker compose up -d)...'
-  # NOTE: In PowerShell, `-f` is the format operator, so we must NOT write: `& $Compose -f ...`
-  # Use the long flag `--file` (or pass '-f' as a string) to avoid accidental formatting.
   $composeArgs = $Compose + @('--file', 'docker-compose.db.yml', '--env-file', '.env', 'up', '-d')
   & $composeArgs[0] $composeArgs[1..($composeArgs.Length - 1)]
   if ($LASTEXITCODE -ne 0) {
@@ -96,9 +94,12 @@ try {
   $port = [int]$env:API_PORT
 
   Write-Host "[INFO] Starting API: http://$hostName`:$port"
-  Invoke-CondaRun -VenvPath $VenvPath -Args @(
+  Invoke-VenvRun -VenvPath $VenvPath -Args @(
     'uvicorn', 'api.main:app',
     '--reload',
+    '--reload-exclude', '.venv',
+    '--reload-exclude', 'venv',
+    '--reload-exclude', '__pycache__',
     '--app-dir', './src',
     '--port', $port,
     '--host', $hostName
@@ -108,5 +109,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

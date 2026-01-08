@@ -1,4 +1,4 @@
-"""RealSense pose extraction orchestrator (public `PoseProcessor`)."""
+"""RealSense 姿態提取主處理器。"""
 
 import gc
 import pickle
@@ -20,6 +20,7 @@ from .pipeline import TimeTrackingMixin, PipelineMixin
 from .pose_ops import PoseOpsMixin
 from .video_overlay import VideoOverlayMixin, FFmpegConverter
 
+
 class PoseProcessor(
     BagIOMixin,
     OutputMixin,
@@ -28,95 +29,105 @@ class PoseProcessor(
     PoseOpsMixin,
     VideoOverlayMixin,
 ):
-    """
-    RealSense 姿態處理器
-    用於從 bag 檔案中提取人體姿態關鍵點並轉換為 3D 座標
-    """
+    """從 RealSense bag 檔提取人體姿態並轉換為 3D 座標。"""
+
     def __init__(
         self,
         bag_file_path: str,
         output_dir: str,
         *,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        fps: Optional[int] = None,
         log_file: Optional[str] = None,
         logger: Optional[Logger] = None,
         prefix: Optional[str] = None,
     ):
-        # 原始輸入路徑（可能是 .bag 也可能是壓縮檔）
         self.original_bag_file_path = Path(bag_file_path)
-
-        # 暫存解壓後檔案路徑（如果有的話）
         self._temp_bag_path: Optional[Path] = None
-        
-        # 設定日誌
+
         self.logger = logger or setup_logger("realsense_pose.processor", log_file=log_file)
 
-        # 給 RealSense 用的實際 bag 檔案路徑（字串）
+        # 準備 bag 檔（若為壓縮檔會先解壓）
         self.bag_file_path = self._prepare_bag_file(self.original_bag_file_path)
 
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.prefix = prefix or ""
 
-        # MediaPipe 設定
         self.mp_pose = mp.solutions.pose
-        
-        # 相機參數配置
-        self.width, self.height = 640, 480
-        self.fps = 30
 
-        # 是否需要轉換格式
+        # 預設相機參數
+        if width is None or height is None or fps is None:
+            width, height, fps = 640, 480, 30
+
+        self.logger.info(
+            f"[PoseProcessor] Camera parameters - "
+            f"Width: {width} px | Height: {height} px | FPS: {fps}"
+        )
+
+        self.width, self.height, self.fps = width, height, float(fps)
+
         self._need_bgr2rgb = False
         self._need_yuyv2rgb = False
-
-        # time-tracking state (initialized in process_bag)
         self._first_frame_number = None
         self._processed_frames = 0
         
     def process_bag(
-        self, 
+        self,
         progress_interval: int = 1000,
         skip_frames: int = 0,
         max_frames: int = 6 * 60 * 30,
         *,
-        # 輸出座標慣例：y_axis_up=True 時輸出 y 向上為正
+        dump_bag_info: bool = False,
         y_axis_up: bool = True,
-        # 是否校正姿態
         calibrate_pose: bool = True,
         calibrate_pose_config: Optional[CalibrationConfig] = None,
-        # 輸出選項
         save_npy: bool = True,
         save_pickle: bool = False,
         save_video: bool = False,
         output_npy_filename: Optional[str] = None,
         output_pickle_filename: Optional[str] = None,
         output_video_filename: Optional[str] = None,
-        # 影片編碼格式：h264（推薦，瀏覽器支援好）、mp4v、xvid、mjpg、auto
         video_codec: str = "auto",
-        # 深度門檻：避免誤取到遠處背景深度造成 3D 座標爆掉（例如 z=20m）
         min_depth_m: float = 0.1,
         max_depth_m: Optional[float] = 8.0,
-        # 延遲：讓 pipeline stop / 資源釋放更穩，避免下一次 init 卡死（Windows 常見）
         pre_pipeline_delay_s: float = 0.5,
         post_pipeline_delay_s: float = 1.0,
         **kwargs,
     ) -> np.ndarray:
         """
-        從 .bag 擷取 MediaPipe Pose，輸出：
-        - 3D 相機座標 (N, 34, 3)（最後一個元素為 [0,0,timestamp]）
-        - （選擇性）overlay 視訊，人物含關節點與連線
-        
-        新增後處理選項：
-        - temporal_smooth: 是否進行時序平滑（減少單幀跳動）
-        - temporal_smooth_window: 時序平滑窗口大小
-        - fix_lr_swap: 是否檢測並修復左右關節交換
+        從 bag 檔提取 MediaPipe Pose 並輸出 3D 座標。
+
+        Args:
+            progress_interval: 每處理多少幀輸出一次進度
+            skip_frames: 跳幀間隔，0 表示不跳幀
+            max_frames: 最大處理幀數
+            dump_bag_info: 是否輸出 bag 的 stream 資訊（除錯用）
+            y_axis_up: 輸出座標是否轉換為 y 軸向上
+            calibrate_pose: 是否進行姿態校正
+            calibrate_pose_config: 校正設定
+            save_npy: 是否儲存 npy 檔
+            save_pickle: 是否儲存 pickle 檔
+            save_video: 是否儲存 overlay 影片
+            output_npy_filename: npy 檔名
+            output_pickle_filename: pickle 檔名
+            output_video_filename: 影片檔名
+            video_codec: 影片編碼（h264/mp4v/xvid/mjpg/auto）
+            min_depth_m: 最小有效深度（公尺）
+            max_depth_m: 最大有效深度（公尺）
+            pre_pipeline_delay_s: pipeline 初始化前延遲（秒）
+            post_pipeline_delay_s: pipeline 關閉後延遲（秒）
+
+        Returns:
+            shape (N, 34, 3) 的姿態座標 array
         """
         pipeline = None
         writer = None
 
-        # 初始化時間追蹤
+        self._dump_bag_info = bool(dump_bag_info)
         self._init_time_tracking()
 
-        # 統計與暫存
         camera_coordinate_list = []
         valid_pose_frames = 0
         frame_idx = 0
@@ -125,22 +136,21 @@ class PoseProcessor(
         start_time = time.time()
         max_recent_time = 1
         recent_frames = deque(maxlen=1024)
-        video_path = None  # 初始化影片路徑變數
+        video_path = None
 
         try:
-            # Force gc before init to help release lingering pyrealsense2 resources.
+            # 釋放可能殘留的 pyrealsense2 資源
             gc.collect()
 
             if pre_pipeline_delay_s and pre_pipeline_delay_s > 0:
                 self.logger.info(f"[process_bag] Pre-pipeline delay: {pre_pipeline_delay_s}s...")
                 time.sleep(float(pre_pipeline_delay_s))
 
-            # 初始化管道
             self.logger.info("[process_bag] Calling _setup_pipeline()...")
             pipeline, align = self._setup_pipeline()
             self.logger.info("[process_bag] Pipeline initialized.")
 
-            # 視訊輸出
+            # 設定影片輸出
             target_fps = float(self.fps)
             eff_fps = target_fps / max(1, skip_frames) if skip_frames else target_fps
             if save_video:
@@ -154,7 +164,7 @@ class PoseProcessor(
                     )
 
                 video_path = self._resolve_output_path(
-                    output_video_filename, 
+                    output_video_filename,
                     f"{self.prefix}_{Path(self.bag_file_path).stem}.mp4"
                 )
                 writer = self._init_video_writer(
@@ -165,7 +175,7 @@ class PoseProcessor(
                     codec=video_codec,
                 )
 
-            # MediaPipe Pose
+            # MediaPipe Pose 處理迴圈
             with self.mp_pose.Pose(
                 model_complexity=kwargs.get("model_complexity", 0),
                 enable_segmentation=False,
@@ -180,11 +190,12 @@ class PoseProcessor(
                         self.logger.warning(f"Failed to get frame {frame_idx}: {e}")
                         continue
 
-                    # 避免重複幀
+                    # 跳過重複幀
                     if frames.frame_number == last_frame_number:
                         continue
                     last_frame_number = frames.frame_number
 
+                    # 計算即時 FPS
                     now = time.time()
                     recent_frames.append(now)
                     while recent_frames and now - recent_frames[0] > max_recent_time:
@@ -193,18 +204,15 @@ class PoseProcessor(
                         now - recent_frames[0], 1e-6
                     )
 
-                    # 進度
                     if frame_idx % progress_interval == 0 and frame_idx > 0:
                         self.logger.info(
                             f"Processed {frame_idx} frames | Recent FPS (1s): {fps:.2f}"
                         )
 
-                    # 幀計數與跳幀
                     frame_idx += 1
                     if skip_frames != 0 and frame_idx % skip_frames != 0:
                         continue
 
-                    # 彩色幀
                     color_frame = frames.get_color_frame()
                     if not color_frame:
                         continue
@@ -212,7 +220,7 @@ class PoseProcessor(
                     color_image = np.asanyarray(color_frame.get_data())
                     img_h, img_w = color_image.shape[:2]
 
-                    # 只算一次 RGB，後面全部重用
+                    # 色彩空間轉換
                     if self._need_bgr2rgb:
                         rgb_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB)
                     elif self._need_yuyv2rgb:
@@ -220,7 +228,7 @@ class PoseProcessor(
                     else:
                         rgb_image = color_image
 
-                    # color frame intrinsics（若 depth 已對齊到 color，通常應使用這組內參做 deproject）
+                    # 取得 color frame intrinsics
                     color_intrin = None
                     try:
                         color_intrin = (
@@ -229,17 +237,15 @@ class PoseProcessor(
                     except Exception:
                         color_intrin = None
 
-                    # 先跑 Pose（未對齊）
                     results = pose.process(rgb_image)
 
-                    # 2D 關鍵點（彩色座標） (33, 2)
                     pixel_coords = self._extract_pose_coordinates(
                         results, image_width=img_w, image_height=img_h
                     )
                     if pixel_coords is None:
                         continue
 
-                    # 對齊以取得對應的深度
+                    # 對齊深度幀
                     try:
                         aligned = align.process(frames) if align is not None else frames
                         depth_frame = aligned.get_depth_frame()
@@ -250,19 +256,15 @@ class PoseProcessor(
                     if not depth_frame:
                         continue
 
-                    # 內參
                     try:
                         depth_intrin = (
                             depth_frame.profile.as_video_stream_profile().intrinsics
                         )
                     except Exception as e:
-                        self.logger.warning(
-                            f"Failed to get depth intrinsics: {e}"
-                        )
+                        self.logger.warning(f"Failed to get depth intrinsics: {e}")
                         continue
 
-                    # 若對齊後 depth 的 intrinsics 尺寸與 color 不一致，優先使用 color intrinsics
-                    # （可避免 bag stream profile 不一致造成的 X/Y 換算偏差）
+                    # 若 depth/color intrinsics 尺寸不一致，使用 color intrinsics
                     intrin_for_deproj = depth_intrin
                     try:
                         if (
@@ -280,10 +282,8 @@ class PoseProcessor(
                     except Exception:
                         intrin_for_deproj = depth_intrin
 
-                    # 時間戳
                     timestamp = self._get_frame_timestamp(frames, frame_idx)
 
-                    # 彩色像素 → 3D 相機座標 (34, 3)
                     camera_coords = self._pixel_to_camera_coordinates(
                         pixel_coords,
                         depth_frame,
@@ -295,7 +295,6 @@ class PoseProcessor(
                     camera_coordinate_list.append(camera_coords)
                     valid_pose_frames += 1
 
-                    # 視訊寫入
                     if save_video and writer is not None:
                         try:
                             self._write_overlay_frame(
@@ -310,18 +309,14 @@ class PoseProcessor(
                             self.logger.error(f"Write video failed: {e}")
                             save_video = False
 
-            # 統計
             processing_time = time.time() - start_time
             self.logger.info("Processing completed:")
             self.logger.info(f"  - Processing time: {processing_time:.2f} seconds")
             self.logger.info(f"  - Valid pose frames: {valid_pose_frames}")
 
-            # 轉 numpy 並保存
-            raw_arr = np.array(
-                camera_coordinate_list, dtype=np.float32
-            )
+            raw_arr = np.array(camera_coordinate_list, dtype=np.float32)
 
-            # 若不做校正，則先套用輸出座標慣例再保存（npy / pickle）
+            # 不校正時直接輸出
             if not calibrate_pose:
                 out_arr = self._apply_output_y_axis_up(raw_arr, y_axis_up=y_axis_up)
                 npy_path, _ = self._save_results(
@@ -333,9 +328,7 @@ class PoseProcessor(
                 )
                 return out_arr
 
-            # 需要校正時：
-            # - npy 會由「校正後」結果寫入
-            # - pickle：若 y_axis_up=True，讓 pickle 與 npy 保持相同座標慣例（避免一個翻一個沒翻）
+            # 校正流程：先存原始資料，再校正後覆寫
             save_pickle_now = bool(save_pickle) and (not bool(y_axis_up))
             npy_path, pickle_path = self._save_results(
                 raw_arr,
@@ -344,10 +337,8 @@ class PoseProcessor(
                 output_npy_filename=output_npy_filename,
                 output_pickle_filename=output_pickle_filename,
             )
-            
-            # 校正姿態
+
             if calibrate_pose:
-                # 防呆：外部若傳入 None，使用預設設定，避免 'NoneType' object has no attribute 'mode'
                 cfg = calibrate_pose_config or CalibrationConfig()
                 calibrator = PoseNpyCalibrator(cfg=cfg)
 
@@ -363,7 +354,7 @@ class PoseProcessor(
 
             return out_arr
         finally:
-            # 釋放視訊寫入器
+            # 釋放 VideoWriter
             if writer is not None:
                 try:
                     writer.release()
@@ -372,8 +363,8 @@ class PoseProcessor(
 
                 if save_video and video_path is not None:
                     self.logger.info(f"Overlay video saved to: {video_path}")
-                    
-                    # 嘗試用 FFmpeg 轉換為 H.264（瀏覽器相容）
+
+                    # 轉換為 H.264 以提升瀏覽器相容性
                     if FFmpegConverter.convert_to_h264(str(video_path)):
                         self.logger.info(f"Video converted to H.264: {video_path}")
                     else:
@@ -382,7 +373,7 @@ class PoseProcessor(
                             f"Video may not play in browser: {video_path}"
                         )
 
-            # 釋放管道（更激進地清理，避免 Windows 上資源殘留導致 N 次後卡死）
+            # 釋放 pipeline（Windows 上需多次嘗試以確保資源釋放）
             if pipeline is not None:
                 self.logger.info("[process_bag] Stopping pipeline...")
                 stopped = False
@@ -400,7 +391,7 @@ class PoseProcessor(
                 if not stopped:
                     self.logger.warning(f"Failed to stop pipeline after retries: {last_err}")
 
-            # 顯式刪除 pipeline/align 引用，讓 Python 可以回收底層 C++ 資源
+            # 刪除參考以協助 GC 回收 C++ 資源
             self.logger.info("[process_bag] Deleting pipeline/align references...")
             try:
                 del pipeline
@@ -412,21 +403,15 @@ class PoseProcessor(
                 pass
             self.logger.info("[process_bag] References deleted.")
 
-            # 清理暫存 bag 檔（如果有的話，不管前面成功失敗都會執行）
+            # 清理暫存 bag 檔
             if self._temp_bag_path is not None:
                 try:
                     if self._temp_bag_path.exists():
                         self._temp_bag_path.unlink()
-                        self.logger.info(
-                            f"Temporary bag file removed: {self._temp_bag_path}"
-                        )
+                        self.logger.info(f"Temporary bag file removed: {self._temp_bag_path}")
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to remove temporary bag file "
-                        f"{self._temp_bag_path}: {e}"
-                    )
+                    self.logger.warning(f"Failed to remove temporary bag file {self._temp_bag_path}: {e}")
 
-            # Optional delay after cleanup.
             if post_pipeline_delay_s and post_pipeline_delay_s > 0:
                 time.sleep(float(post_pipeline_delay_s))
 

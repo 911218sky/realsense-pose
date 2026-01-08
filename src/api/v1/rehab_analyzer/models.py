@@ -79,14 +79,6 @@ class PerLapOffsetRequest(AnalyzerBaseParams):
       DEFAULT_K_SMOOTH,
       description="lateral offset 平滑階數（Savitzky–Golay）。",
    )
-   fft_band: Tuple[float, float] = Field(
-      DEFAULT_FFT_BAND,
-      description="FFT 頻帶 (Hz)，只保留此範圍。",
-   )
-   fft_params: FFTPeriodogramParams = Field(
-      default_factory=FFTPeriodogramParams,
-      description="FFT / PSD 計算的細部設定（window、nfft 等）。",
-   )
 
 
 class MinutelyCadenceStepLengthBarsRequest(AnalyzerBaseParams):
@@ -262,21 +254,6 @@ class TurnRegions(BaseModel):
    chair: IndexRange = Field(..., description="椅子轉彎區段 index。")
 
 
-class FFTPayload(BaseModel):
-   band: List[float] = Field(..., description="FFT 頻帶 (Hz)，原始輸入值。")
-   freq_hz_f32_zlib_b64: FloatArrayF32ZlibB64 = Field(
-      ...,
-      description="freq_hz 的壓縮表示（float32 little-endian + zlib + base64）。",
-   )
-   psd_db_f32_zlib_b64: FloatArrayF32ZlibB64 = Field(
-      ...,
-      description="psd_db 的壓縮表示（float32 little-endian + zlib + base64）。",
-   )
-   peak_freq_hz: float = Field(..., description="主峰頻率 (Hz)。")
-   peak_power: float = Field(..., description="主峰功率（線性值）。")
-   peak_db: float = Field(..., description="主峰功率 (dB)。")
-
-
 class PerLapOffsetLap(BaseModel):
    lap_index: int = Field(..., description="圈次（從 1 開始）。")
    # Series fields are returned in compact form (float32 little-endian + zlib + base64)
@@ -298,11 +275,10 @@ class PerLapOffsetLap(BaseModel):
    )
    turn_regions: TurnRegions = Field(..., description="錐標/椅子轉彎區段。")
    walk_region: IndexRange = Field(..., description="走路區段 index。")
-   fft: FFTPayload = Field(..., description="走路區段 FFT/PSD 資訊。")
 
 
 class PerLapOffsetResponse(BaseModel):
-   laps: List[PerLapOffsetLap] = Field(..., description="每圈 lateral offset/FFT 資訊。")
+   laps: List[PerLapOffsetLap] = Field(..., description="每圈 lateral offset 資訊。")
 
 
 class MinutelyCadenceStepLengthBarsResponse(BaseModel):

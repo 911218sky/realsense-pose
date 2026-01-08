@@ -23,6 +23,8 @@ from .extract_utils import (
 )
 from .models import (
     DeleteSessionResponse,
+    DeleteSessionsRequest,
+    DeleteSessionsResponse,
     ExtractRequest,
     ExtractJobCreatedResponse,
     ExtractJobStatusResponse,
@@ -38,14 +40,14 @@ logger = setup_logger(__name__)
 default_config = load_config(mode="pose")
 
 router = APIRouter(
-    prefix="/realsense_pose_extractor",
-    tags=["realsense_pose_extractor"]
+    prefix="/realsense-pose-extractor",
+    tags=["realsense-pose-extractor"]
 )
 
 # 公開路由 - 用於影片串流
 public_router = APIRouter(
-    prefix="/realsense_pose_extractor",
-    tags=["realsense_pose_extractor_public"]
+    prefix="/realsense-pose-extractor",
+    tags=["realsense-pose-extractor-public"]
 )
 
 router.include_router(bags_router)
@@ -443,16 +445,15 @@ async def get_session_video(
     )
 
 
-@router.delete("/sessions/{session_name}", response_model=DeleteSessionResponse)
-async def delete_realsense_pose_session(
-    session_name: str,
-) -> DeleteSessionResponse:
+async def _delete_single_session(session_name: str) -> DeleteSessionResponse:
     """
-    刪除指定 session：
-    - 刪除 DB 紀錄
-    - 會嘗試刪除對應的 npy 檔
-    - 會嘗試刪除對應的 video 檔（若有）
-    - bag 檔只有在沒有其他 session 使用相同 bag_hash 時才會刪
+    刪除單個 session 的內部函數（供單一刪除和批量刪除共用）。
+    
+    Returns:
+        DeleteSessionResponse: 刪除結果
+    
+    Raises:
+        HTTPException: 當 session 不存在時
     """
     doc: Optional[RealsensePoseExtractor] = await RealsensePoseExtractor.find_one(
         RealsensePoseExtractor.session_name == session_name
@@ -512,7 +513,64 @@ async def delete_realsense_pose_session(
         session_name=session_name,
         deleted_db=True,
         deleted_npy=deleted_npy,
+        deleted_video=deleted_video,
         deleted_bag=deleted_bag,
+    )
+
+
+@router.post("/sessions/delete", response_model=DeleteSessionsResponse)
+async def delete_realsense_pose_sessions(
+    request: DeleteSessionsRequest,
+) -> DeleteSessionsResponse:
+    """
+    刪除一個或多個 session：
+    - 刪除 DB 紀錄
+    - 會嘗試刪除對應的 npy 檔
+    - 會嘗試刪除對應的 video 檔（若有）
+    - bag 檔只有在沒有其他 session 使用相同 bag_hash 時才會刪
+    - 即使部分刪除失敗，也會繼續處理其他 session
+    
+    Returns:
+        DeleteSessionsResponse: 包含總體統計和每個 session 的詳細結果
+    """
+    total_requested = len(request.session_names)
+    deleted_sessions = 0
+    deleted_db = 0
+    deleted_npy = 0
+    deleted_video = 0
+    deleted_bag = 0
+    failed: List[str] = []
+    details: List[DeleteSessionResponse] = []
+
+    for session_name in request.session_names:
+        try:
+            result = await _delete_single_session(session_name)
+            details.append(result)
+            deleted_sessions += 1
+            if result.deleted_db:
+                deleted_db += 1
+            if result.deleted_npy:
+                deleted_npy += 1
+            if result.deleted_video:
+                deleted_video += 1
+            if result.deleted_bag:
+                deleted_bag += 1
+        except HTTPException as e:
+            logger.warning(f"Failed to delete session {session_name}: {e.detail}")
+            failed.append(session_name)
+        except Exception as e:
+            logger.error(f"Unexpected error deleting session {session_name}: {e}")
+            failed.append(session_name)
+
+    return DeleteSessionsResponse(
+        total_requested=total_requested,
+        deleted_sessions=deleted_sessions,
+        deleted_db=deleted_db,
+        deleted_npy=deleted_npy,
+        deleted_video=deleted_video,
+        deleted_bag=deleted_bag,
+        failed=failed,
+        details=details,
     )
 
 

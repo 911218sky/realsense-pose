@@ -1,3 +1,5 @@
+"""復健分析 CLI。"""
+
 import argparse
 from pathlib import Path
 from typing import Optional
@@ -18,11 +20,10 @@ from logger import setup_logger
 logger = setup_logger("rehab_analyzer.cli")
 
 
-# 參數解析
 def parse_args() -> argparse.Namespace:
-    """解析命令列參數。"""
+    """解析 CLI 參數。"""
     parser = argparse.ArgumentParser(
-        description="Rehabilitation session analysis CLI",
+        description="復健分析 CLI",
     )
     # 輸入姿態資料（.npy）
     parser.add_argument(
@@ -48,23 +49,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def main(args: Optional[argparse.Namespace] = None) -> None:
-    """
-    CLI 進入點：
-
-    - 載入設定（命令列優先，其次 YAML）
-    - 建立 RehabSummaryVisualizer
-    - 依設定執行各種繪圖與影片輸出
-    """
-    # 若外部未傳入 args，則自行從命令列解析
+    """CLI 進入點，載入設定並執行分析與繪圖。"""
     args = args or parse_args()
 
-    # 載入設定檔（mode="analyzer"）
     cfg = load_config(path=args.config, mode="analyzer")
 
-    # 設定來源優先順序：CLI > config.yaml > 預設值
+    # CLI 參數優先於 config
     npy_path = args.npy or cfg.get("npy_file_path")
     if not npy_path:
-        # 使用者若未提供 npy 路徑，視為設定錯誤
         raise ValueError("npy_file_path is not set")
 
     out_dir = Path(args.output or cfg.get("output_dir", "./outputs"))
@@ -161,7 +153,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
             fft_params=mfft_cfg.get("fft_params", None),
         )
 
-    # 每圈 lateral offset / FFT / θ 診斷圖
+    # 每圈 lateral offset / θ 診斷圖
     if cfg.get("save_per_lap_offset", save_images):
         offset_cfg = cfg.get("per_lap_offset_config", {})
         time_it(
@@ -172,9 +164,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
             min_v_abs=min_v_abs,
             k_smooth=offset_cfg.get("k_smooth", 1),
             lat_ylim=offset_cfg.get("lat_ylim", None),
-            psd_ylim=offset_cfg.get("psd_ylim", None),
             theta_ylim=offset_cfg.get("theta_ylim", None),
-            fft_band=tuple(offset_cfg.get("fft_band", (0.00, 2.0))),
             max_points_plot=offset_cfg.get("max_points_plot", 150),
             show_samples=offset_cfg.get("show_samples", True),
             dpi=offset_cfg.get("dpi", 150),
@@ -182,7 +172,6 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
                 "save_name",
                 "per_lap/lap_{lap_idx}_diagnostics.png",
             ),
-            fft_params=offset_cfg.get("fft_params", None),
         )
 
     # 每分鐘步頻/步長柱狀圖

@@ -17,6 +17,7 @@ from db import (
     AdminInvitation,
     AdminSession,
     BagFile,
+    CohortBenchmark,
     RealsenseExtractJob,
     RealsensePoseExtractor,
     UserProfile,
@@ -35,6 +36,7 @@ from .v1 import (
     realsense_pose_extractor_router,
     realsense_pose_extractor_public_router,
     apk_router,
+    cohort_benchmark_router,
 )
 
 IS_PROD = env_bool("IS_PROD", False)
@@ -77,6 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     AdminInvitation,
                     AdminSession,
                     BagFile,
+                    CohortBenchmark,
                 ],
             )
         except Exception as e:
@@ -202,6 +205,13 @@ app.include_router(
 
 app.include_router(
     users_router,
+    prefix=PREFIX,
+    dependencies=[Depends(require_signed_headers), Depends(require_admin)],
+    tags=[PREFIX.replace("/", "")]
+)
+
+app.include_router(
+    cohort_benchmark_router,
     prefix=PREFIX,
     dependencies=[Depends(require_signed_headers), Depends(require_admin)],
     tags=[PREFIX.replace("/", "")]

@@ -11,9 +11,9 @@ import sys
 from typing import Callable, Dict, List, Tuple
 
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 
-from db.mongo.models import RealsensePoseExtractor
+from db.mongo.models import RealsensePoseExtractor, UserProfile
 from logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -51,18 +51,18 @@ class MigrationRunner:
             mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/admin"
 
         logger.info(f"Connecting to MongoDB: {mongo_db}")
-        self.client = AsyncIOMotorClient(mongo_uri)
+        self.client = AsyncMongoClient(mongo_uri)
         self.database = self.client[mongo_db]
 
-        # Initialize Beanie
-        await init_beanie(database=self.database, document_models=[RealsensePoseExtractor])
+        # Initialize Beanie with all document models
+        await init_beanie(database=self.database, document_models=[RealsensePoseExtractor, UserProfile])
 
         logger.info("✅ Connected to MongoDB successfully")
 
     async def disconnect(self):
         """Close MongoDB connection."""
         if self.client:
-            self.client.close()
+            await self.client.close()
             logger.info("Disconnected from MongoDB")
 
     async def run_migration(
@@ -148,11 +148,13 @@ async def run_all_migrations() -> bool:
     # Import migration modules
     from db.mongo.migrations import bag_filename as bag_filename_migration
     from db.mongo.migrations import fix_duplicate_bag_bindings as fix_bindings_migration
+    from db.mongo.migrations import add_cohort_field as add_cohort_migration
 
     # Register all migrations here (in order)
     migrations = [
         ("bag_filename", bag_filename_migration.migrate),
         ("fix_duplicate_bag_bindings", fix_bindings_migration.migrate),
+        ("add_cohort_field", add_cohort_migration.migrate),
         # Add more migrations here as needed:
         # ("new_field", new_field_migration.migrate),
     ]

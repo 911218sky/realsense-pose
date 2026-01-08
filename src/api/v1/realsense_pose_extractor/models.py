@@ -91,7 +91,27 @@ class DeleteSessionResponse(BaseModel):
     session_name: str = Field(..., description="被刪除的 session 名稱。")
     deleted_db: bool = Field(..., description="是否已刪除 DB 紀錄。")
     deleted_npy: bool = Field(..., description="是否已刪除 npy 檔案。")
+    deleted_video: bool = Field(..., description="是否已刪除 video 檔案。")
     deleted_bag: bool = Field(..., description="是否已刪除 bag 檔案。")
+
+
+class DeleteSessionsRequest(BaseModel):
+    """批量刪除 session 的請求。"""
+
+    session_names: List[str] = Field(..., min_length=1, max_length=100, description="要刪除的 session_name 列表（最多 100 個）。")
+
+
+class DeleteSessionsResponse(BaseModel):
+    """批量刪除 session 的回傳。"""
+
+    total_requested: int = Field(..., description="請求刪除的 session 數量。")
+    deleted_sessions: int = Field(..., description="成功刪除的 session 數量。")
+    deleted_db: int = Field(..., description="成功刪除的 DB 紀錄數量。")
+    deleted_npy: int = Field(..., description="成功刪除的 npy 檔案數量。")
+    deleted_video: int = Field(..., description="成功刪除的 video 檔案數量。")
+    deleted_bag: int = Field(..., description="成功刪除的 bag 檔案數量。")
+    failed: List[str] = Field(default_factory=list, description="刪除失敗的 session_name 列表。")
+    details: List[DeleteSessionResponse] = Field(default_factory=list, description="每個 session 的詳細刪除結果。")
 
 
 class VideoAvailabilityResponse(BaseModel):

@@ -1,4 +1,4 @@
-"""Pose (MediaPipe) extraction and 2D->3D deprojection helpers."""
+"""MediaPipe 姿態提取與 2D→3D 反投影工具。"""
 
 from typing import List, Optional, Tuple
 
@@ -6,28 +6,33 @@ import mediapipe as mp
 import numpy as np
 import pyrealsense2 as rs
 
+
 class PoseOpsMixin:
+    """提供姿態座標提取與深度反投影的 mixin 類別。"""
+
     def _extract_pose_coordinates(
-        self, 
+        self,
         results: mp.solutions.pose.PoseLandmark,
         *,
         image_width: int,
         image_height: int,
     ) -> Optional[List[Tuple[int, int]]]:
         """
-        從 MediaPipe 結果中提取姿態關鍵點座標
-        
+        從 MediaPipe 結果提取姿態關鍵點的像素座標。
+
         Args:
-            results: MediaPipe 處理結果
-            
+            results: MediaPipe Pose 處理結果
+            image_width: 影像寬度（像素）
+            image_height: 影像高度（像素）
+
         Returns:
-            關鍵點像素座標列表，如果沒有檢測到姿態則返回 None
+            33 個關鍵點的像素座標 [(x, y), ...]，未偵測到姿態時回傳 None
         """
         if results.pose_landmarks is None:
             return None
         coords = []
         for lm in results.pose_landmarks.landmark:
-            # MediaPipe 的 lm.x/lm.y 為 [0,1] 的正規化座標，需乘上「實際影像尺寸」
+            # MediaPipe 輸出正規化座標 [0,1]，需轉換為像素座標
             x = int(lm.x * image_width)
             y = int(lm.y * image_height)
             coords.append((x, y))
@@ -44,17 +49,20 @@ class PoseOpsMixin:
         max_depth_m: Optional[float] = 8.0,
     ) -> float:
         """
-        取得更穩定的深度值：使用周圍像素的中位數，避免單點噪聲。
-        
+        取得穩定的深度值，使用周圍像素的中位數降低單點噪聲影響。
+
         Args:
-            depth_frame: 深度幀
-            x, y: 中心像素座標
-            radius: 採樣半徑（預設 2，即 5x5 區域）
-            
+            depth_frame: RealSense 深度幀
+            x: 中心像素 x 座標
+            y: 中心像素 y 座標
+            radius: 採樣半徑，預設 2 表示 5×5 區域
+            min_depth_m: 最小有效深度（公尺）
+            max_depth_m: 最大有效深度（公尺），None 表示不限制
+
         Returns:
-            穩定的深度值（公尺），若無有效深度則回傳 0.0
+            深度值（公尺），無有效深度時回傳 0.0
         """
-        # depth_frame 的實際尺寸（避免使用固定 self.width/self.height 造成越界或取樣偏移）
+        # 從 depth_frame 取得實際尺寸，避免越界
         w = int(depth_frame.get_width())
         h = int(depth_frame.get_height())
 
@@ -66,17 +74,17 @@ class PoseOpsMixin:
                     d = depth_frame.get_distance(nx, ny)
                     if d <= 0:
                         continue
-                    # 避免 MediaPipe 把腳點偵測到遠處背景（會造成 z/y 爆到好幾公尺）
+                    # 過濾超出有效範圍的深度值
                     if d < float(min_depth_m):
                         continue
                     if max_depth_m is not None and d > float(max_depth_m):
                         continue
                     depths.append(float(d))
-        
+
         if not depths:
             return 0.0
-        
-        # 使用中位數更穩定
+
+        # 中位數對 outlier 更穩健
         med = float(np.median(depths))
         if med < float(min_depth_m):
             return 0.0
@@ -85,10 +93,10 @@ class PoseOpsMixin:
         return med
     
     def _pixel_to_camera_coordinates(
-        self, 
-        pixel_coords: List[Tuple[int, int]], 
-        depth_frame: rs.depth_frame, 
-        depth_intrin: rs.intrinsics, 
+        self,
+        pixel_coords: List[Tuple[int, int]],
+        depth_frame: rs.depth_frame,
+        depth_intrin: rs.intrinsics,
         timestamp: float,
         use_robust_depth: bool = True,
         *,
@@ -96,36 +104,37 @@ class PoseOpsMixin:
         max_depth_m: Optional[float] = 8.0,
     ) -> np.ndarray:
         """
-        將像素座標轉換為 3D 相機座標系座標
-        
+        將像素座標轉換為 3D 相機座標。
+
         Args:
             pixel_coords: 像素座標列表 [(x, y), ...]
-            depth_frame: 深度幀
+            depth_frame: RealSense 深度幀
             depth_intrin: 深度相機內參
-            timestamp: 時間戳
-            use_robust_depth: 是否使用穩健深度採樣（周圍像素中位數）
-            
+            timestamp: 時間戳（秒）
+            use_robust_depth: 是否使用周圍像素中位數取得穩健深度
+            min_depth_m: 最小有效深度（公尺）
+            max_depth_m: 最大有效深度（公尺）
+
         Returns:
-            3D 相機座標列表 (34, 3)
-            33 個關鍵點，每個關鍵點有 x, y, z 三個座標，最後一個元素是時間戳
+            shape (34, 3) 的 array，前 33 列為關節點 xyz 座標，
+            第 34 列 [0, 0, timestamp] 存放時間戳
         """
         camera_coords = []
 
-        # 以 intrinsics / depth_frame 尺寸做 bounds（避免固定 self.width/self.height 導致的座標判斷錯誤）
+        # 取得影像邊界，優先使用 intrinsics 尺寸
         try:
             w = int(getattr(depth_intrin, "width", 0) or depth_frame.get_width())
             h = int(getattr(depth_intrin, "height", 0) or depth_frame.get_height())
         except Exception:
             w = int(self.width)
             h = int(self.height)
-        
+
         for x, y in pixel_coords:
-            # 檢查座標是否在有效範圍內
             if not (0 <= x < w and 0 <= y < h):
                 camera_coords.append([0.0, 0.0, 0.0])
                 continue
-            
-            # 獲取該像素點的深度值
+
+            # 取得深度值
             if use_robust_depth:
                 depth = self._get_robust_depth(
                     depth_frame,
@@ -139,42 +148,44 @@ class PoseOpsMixin:
                 depth = float(depth_frame.get_distance(x, y))
                 if depth < float(min_depth_m) or (max_depth_m is not None and depth > float(max_depth_m)):
                     depth = 0.0
-            
-            if depth > 0:  # 有效深度值
-                # 將像素座標和深度轉換為 3D 相機座標 (x, y, z)
+
+            if depth > 0:
+                # 反投影：像素 + 深度 → 3D 相機座標
                 coord_3d = rs.rs2_deproject_pixel_to_point(
-                    intrin=depth_intrin, 
-                    pixel=[x, y], 
+                    intrin=depth_intrin,
+                    pixel=[x, y],
                     depth=depth
                 )
                 camera_coords.append(list(coord_3d))
             else:
-                # 無效深度值，填入零座標
                 camera_coords.append([0.0, 0.0, 0.0])
-        
-        # 添加時間戳作為最後一個元素
+
+        # 第 34 列存放時間戳
         camera_coords.append([0.0, 0.0, timestamp])
-        camera_coords_np = np.array(camera_coords, dtype=np.float32)
-        
-        return camera_coords_np
+        return np.array(camera_coords, dtype=np.float32)
     
     def _apply_output_y_axis_up(self, arr: np.ndarray, *, y_axis_up: bool) -> np.ndarray:
         """
-        將輸出座標轉成「y 向上為正」的慣例（y_axis_up=True 時）。
+        轉換座標系為 y 軸向上。
 
-        注意：
-        - RealSense rs2_deproject_pixel_to_point 的相機座標常見慣例為：x 向右、y 向下、z 向前
-        - 本專案 npy 格式可能含 timestamp row (index 33) = [0, 0, t]，這列不應做座標翻轉
+        RealSense 相機座標預設為 x 向右、y 向下、z 向前。
+        當 y_axis_up=True 時，將 y 座標反轉使其向上為正。
+
+        Args:
+            arr: shape (N, J, 3) 的姿態座標 array
+            y_axis_up: 是否轉換為 y 軸向上
+
+        Returns:
+            轉換後的座標 array，第 34 列（timestamp）不受影響
         """
         if not y_axis_up:
             return arr
 
         a = np.asarray(arr)
         if a.ndim != 3 or a.shape[-1] != 3:
-            # 不符合本專案 (N,J,3) 格式就不處理
             return arr
 
         out = a.copy()
-        pose_j = min(33, out.shape[1])  # 只處理關節點（保留 timestamp row）
+        pose_j = min(33, out.shape[1])  # 只處理關節點，保留 timestamp 列
         out[:, :pose_j, 1] *= -1.0
         return out

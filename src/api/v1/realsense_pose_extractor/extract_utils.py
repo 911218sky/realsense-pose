@@ -213,6 +213,11 @@ async def run_extraction_pipeline(
         min_tracking_confidence=cfg.get("min_tracking_confidence", 0.5),
         calibrate_pose=cfg.get("calibrate_pose", True),
         y_axis_up=cfg.get("y_axis_up", False),
+        # 解析度設定
+        width=cfg.get("width", None),
+        height=cfg.get("height", None),
+        fps=cfg.get("fps", None),
+        # 輸出選項
         save_npy=True,
         save_pickle=False,
         save_video=save_video,

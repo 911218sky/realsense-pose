@@ -25,9 +25,9 @@ function Get-ProjectRoot {
   while ($true) {
     $hasSrc = Test-Path (Join-Path $dir 'src')
     $hasCompose = Test-Path (Join-Path $dir 'docker-compose.yml')
-    $hasReq = Test-Path (Join-Path $dir 'requirements.txt')
+    $hasPyproject = Test-Path (Join-Path $dir 'pyproject.toml')
 
-    if ($hasSrc -and ($hasCompose -or $hasReq)) {
+    if ($hasSrc -and ($hasCompose -or $hasPyproject)) {
       return $dir
     }
 
@@ -94,7 +94,15 @@ function Invoke-Compose {
   return $LASTEXITCODE
 }
 
-function Invoke-CondaRun {
+function Get-VenvPath {
+  param(
+    [Parameter(Mandatory)]
+    [string] $ProjectRoot
+  )
+  return Join-Path $ProjectRoot '.venv'
+}
+
+function Invoke-VenvRun {
   param(
     [Parameter(Mandatory)]
     [string] $VenvPath,
@@ -102,38 +110,77 @@ function Invoke-CondaRun {
     [string[]] $Args
   )
   
-  # Use Python -m for conda environments (avoids canonicalization issues)
-  $pythonExe = Join-Path $VenvPath 'python.exe'
-  if (Test-Path $pythonExe) {
-    # Convert common commands to -m module format
-    $moduleMap = @{
-      'uvicorn' = 'uvicorn'
-      'pytest' = 'pytest'
-      'pip' = 'pip'
-      'black' = 'black'
-      'flake8' = 'flake8'
-      'mypy' = 'mypy'
-    }
-    
-    $cmd = $Args[0]
-    if ($moduleMap.ContainsKey($cmd)) {
-      $moduleArgs = @('-m', $moduleMap[$cmd]) + $Args[1..($Args.Length - 1)]
-      & $pythonExe @moduleArgs
-      if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($moduleArgs -join ' ')" }
-      return
-    }
-    
-    # If first arg is already -m or a .py file, use python directly
-    if ($Args[0] -eq '-m' -or $Args[0] -match '\.(py|pyw)$') {
-      & $pythonExe @Args
-      if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($Args -join ' ')" }
-      return
-    }
+  $pythonExe = Join-Path $VenvPath 'Scripts\python.exe'
+  if (-not (Test-Path $pythonExe)) {
+    throw "Python not found in venv: $pythonExe"
   }
   
-  # Fallback to conda run
-  & conda run --live-stream -p $VenvPath @Args
-  if ($LASTEXITCODE -ne 0) { throw "Command failed: conda run -p `"$VenvPath`" $($Args -join ' ')" }
+  # Convert common commands to -m module format
+  $moduleMap = @{
+    'uvicorn' = 'uvicorn'
+    'pytest' = 'pytest'
+    'pip' = 'pip'
+    'uv' = 'uv'
+    'black' = 'black'
+    'ruff' = 'ruff'
+    'flake8' = 'flake8'
+    'mypy' = 'mypy'
+  }
+  
+  $cmd = $Args[0]
+  if ($moduleMap.ContainsKey($cmd)) {
+    $moduleArgs = @('-m', $moduleMap[$cmd]) + $Args[1..($Args.Length - 1)]
+    & $pythonExe @moduleArgs
+    if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($moduleArgs -join ' ')" }
+    return
+  }
+  
+  # If first arg is already -m or a .py file, use python directly
+  if ($Args[0] -eq '-m' -or $Args[0] -match '\.(py|pyw)$') {
+    & $pythonExe @Args
+    if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($Args -join ' ')" }
+    return
+  }
+  
+  # Default: run as python command
+  & $pythonExe @Args
+  if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($Args -join ' ')" }
+}
+
+function Try-VenvRun {
+  param(
+    [Parameter(Mandatory)]
+    [string] $VenvPath,
+    [Parameter(Mandatory)]
+    [string[]] $Args
+  )
+  $pythonExe = Join-Path $VenvPath 'Scripts\python.exe'
+  & $pythonExe @Args
+  return $LASTEXITCODE
+}
+
+function Get-VenvOutput {
+  param(
+    [Parameter(Mandatory)]
+    [string] $VenvPath,
+    [Parameter(Mandatory)]
+    [string[]] $Args
+  )
+  $pythonExe = Join-Path $VenvPath 'Scripts\python.exe'
+  $out = & $pythonExe @Args
+  if ($LASTEXITCODE -ne 0) { throw "Command failed: $pythonExe $($Args -join ' ')" }
+  return ($out -join "`n").Trim()
+}
+
+# Legacy aliases for backward compatibility
+function Invoke-CondaRun {
+  param(
+    [Parameter(Mandatory)]
+    [string] $VenvPath,
+    [Parameter(Mandatory)]
+    [string[]] $Args
+  )
+  Invoke-VenvRun -VenvPath $VenvPath -Args $Args
 }
 
 function Try-CondaRun {
@@ -143,8 +190,7 @@ function Try-CondaRun {
     [Parameter(Mandatory)]
     [string[]] $Args
   )
-  & conda run --live-stream -p $VenvPath @Args
-  return $LASTEXITCODE
+  Try-VenvRun -VenvPath $VenvPath -Args $Args
 }
 
 function Get-CondaOutput {
@@ -154,9 +200,5 @@ function Get-CondaOutput {
     [Parameter(Mandatory)]
     [string[]] $Args
   )
-  $out = & conda run -p $VenvPath @Args
-  if ($LASTEXITCODE -ne 0) { throw "Command failed: conda run -p `"$VenvPath`" $($Args -join ' ')" }
-  return ($out -join "`n").Trim()
+  Get-VenvOutput -VenvPath $VenvPath -Args $Args
 }
-
-

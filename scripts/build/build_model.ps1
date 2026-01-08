@@ -9,29 +9,29 @@ $ModeFlag = @('--module', $ModuleName)
 $env:CC = 'clang-cl'
 $env:CXX = 'clang++'
 
-$VenvPath = Join-Path $ProjectRoot 'venv'
+$VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 
 try {
   # Ensure Nuitka exists
   try {
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'nuitka', '--version')
+    Invoke-VenvRun -VenvPath $VenvPath -Args @('-m', 'nuitka', '--version')
   } catch {
     Write-Host 'Nuitka not installed, installing now...'
-    Invoke-CondaRun -VenvPath $VenvPath -Args @('python', '-m', 'pip', 'install', '-U', 'nuitka')
+    & uv pip install --python $VenvPath -U nuitka
   }
 
   Write-Host 'Compiling (module mode)...'
   $nuitkaArgs = @(
-    'python', '-m', 'nuitka',
+    '-m', 'nuitka',
     '--clang'
   ) + $ModeFlag + @(
     "--include-package=$ModuleName",
     '--python-flag=no_warnings,-O,no_docstrings'
   )
-  Invoke-CondaRun -VenvPath $VenvPath -Args $nuitkaArgs
+  Invoke-VenvRun -VenvPath $VenvPath -Args $nuitkaArgs
 
   Write-Host ''
-  Write-Host "✅ Done! Output in $OutputDir"
+  Write-Host "Done! Output in $OutputDir"
   if (Test-Path $OutputDir) {
     Get-ChildItem -Name $OutputDir
   }
@@ -41,5 +41,3 @@ try {
   Write-Error $_
   exit 1
 }
-
-

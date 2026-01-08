@@ -16,7 +16,11 @@ from db import (
 )
 
 from .models import (
-    DeleteUserResponse,
+    CohortStatItem,
+    CohortStatsResponse,
+    DeleteUserResult,
+    DeleteUsersRequest,
+    DeleteUsersResponse,
     FindUserByBagRequest,
     FindUserByBagResponse,
     LinkSessionRequest,
@@ -46,6 +50,7 @@ def _to_user_item(doc: UserProfile) -> UserItem:
         weight_kg=doc.weight_kg,
         bmi=doc.bmi,
         education_level=doc.education_level,
+        cohort=doc.cohort,
         diagnosis=doc.diagnosis,
         medical_history=doc.medical_history,
         symptoms=doc.symptoms,
@@ -150,6 +155,7 @@ async def list_users(
         UserListItem(
             user_code=doc.user_code,
             name=doc.name,
+            cohort=doc.cohort,
             created_at=doc.created_at,
             updated_at=doc.updated_at,
         )
@@ -165,29 +171,86 @@ async def list_users(
     )
 
 
+@router.get("/cohorts", response_model=CohortStatsResponse)
+async def get_cohort_stats() -> CohortStatsResponse:
+    """
+    取得所有族群的統計資訊。
+
+    使用 MongoDB aggregation 統計每個族群的使用者數量。
+    由於 cohort 是陣列，一個使用者可屬於多個族群，
+    各族群人數總和可能超過總使用者數。
+    """
+    pipeline = [
+        # 若 cohort 不存在或為空陣列，設為預設值
+        {"$project": {
+            "cohort": {
+                "$ifNull": [
+                    {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$cohort", []]}}, 0]}, "$cohort", None]},
+                    ["正常人"]
+                ]
+            }
+        }},
+        {"$unwind": "$cohort"},
+        {"$group": {"_id": "$cohort", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": -1}},
+    ]
+
+    try:
+        results = await UserProfile.aggregate(pipeline).to_list()
+        return CohortStatsResponse(
+            cohorts=[CohortStatItem(cohort=r["_id"], user_count=r["count"]) for r in results],
+            total_cohorts=len(results),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+
 @router.get("/search", response_model=UserSearchSuggestionResponse)
 async def search_user_names(
-    keyword: str = Query(..., min_length=1, max_length=128),
+    keyword: Optional[str] = Query(None, max_length=128, description="姓名關鍵字（前綴匹配）"),
+    cohort: Optional[List[str]] = Query(None, description="族群篩選列表（例如：['中風', '高齡']），會篩選同時屬於所有指定族群的使用者"),
     page: int = Query(1, ge=1, description="頁碼（從 1 開始）"),
     page_size: int = Query(20, ge=1, le=200, description="每頁筆數"),
 ) -> UserSearchSuggestionResponse:
     """
-    依「name 前綴」搜尋 UserProfile，回傳自動完成建議（精簡 user 資訊，支援分頁）。
+    搜尋使用者，支援姓名關鍵字和族群篩選。
+
+    - **keyword**: 姓名前綴匹配（可選）
+    - **cohort**: 族群篩選列表，會篩選同時屬於所有指定族群的使用者（可選）
+    - 兩者都不填則回傳所有使用者
+    - 兩者都填則同時滿足兩個條件
     """
-    query_text = keyword.strip()
-    if not query_text:
-        return UserSearchSuggestionResponse(
-            total=0,
-            page=1,
-            page_size=page_size,
-            total_pages=0,
-            items=[],
-        )
+    # 建立查詢條件
+    conditions = []
 
-    escaped = re.escape(query_text)
-    pattern = f"^{escaped}"
+    # 姓名關鍵字篩選
+    if keyword:
+        query_text = keyword.strip()
+        if query_text:
+            escaped = re.escape(query_text)
+            pattern = f"^{escaped}"
+            conditions.append({"name": {"$regex": pattern, "$options": "i"}})
 
-    query = UserProfile.find({"name": {"$regex": pattern, "$options": "i"}})
+    # 族群篩選（cohort 是陣列，使用 $all 確保使用者屬於所有指定的族群）
+    if cohort:
+        # 過濾掉空字串
+        valid_cohorts = [c.strip() for c in cohort if c and c.strip()]
+        if valid_cohorts:
+            # $all 會篩選陣列包含所有指定元素的文件
+            conditions.append({"cohort": {"$all": valid_cohorts}})
+
+    # 組合查詢條件
+    if conditions:
+        if len(conditions) == 1:
+            filter_dict = conditions[0]
+        else:
+            filter_dict = {"$and": conditions}
+        query = UserProfile.find(filter_dict)
+    else:
+        # 沒有任何篩選條件，回傳所有使用者
+        query = UserProfile.find_all()
+
     total = await query.count()
     skip = (page - 1) * page_size
     total_pages = int(math.ceil(total / page_size)) if total else 0
@@ -205,12 +268,12 @@ async def search_user_names(
             {
                 "user_code": doc.user_code,
                 "name": doc.name,
+                "cohort": doc.cohort,
                 "created_at": doc.created_at,
             }
             for doc in docs
         ],
     )
-
 
 @router.post("/find-by-bag", response_model=FindUserByBagResponse)
 async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagResponse:
@@ -367,17 +430,11 @@ async def link_user_to_session(user_code: str, payload: LinkSessionRequest) -> U
     if not session:
         raise HTTPException(status_code=404, detail="session not found")
 
-    # 檢查此 bag 是否已被其他使用者綁定（一個 bag 只能綁定一個使用者）
-    # 使用 bag_filename 檢查（比 bag_hash 更可靠，因為 bag_filename 一定有值）
-    existing_binding = await RealsensePoseExtractor.find_one(
-        RealsensePoseExtractor.bag_filename == session.bag_filename,
-        RealsensePoseExtractor.user_code != None,
-        RealsensePoseExtractor.user_code != user_code,
-    )
-    if existing_binding:
+    # 檢查此 session 是否已被其他使用者綁定（一個 session 只能綁定一個使用者）
+    if session.user_code and session.user_code != user_code:
         raise HTTPException(
             status_code=409,
-            detail=f"bag is already linked to another user: {existing_binding.user_code}",
+            detail=f"session is already linked to another user: {session.user_code}",
         )
 
     # 執行綁定
@@ -397,11 +454,11 @@ async def unlink_user_from_session(
         description="若為 True，允許解除任何 user_code（即使目前不是綁在這個 user 上）；預設 False 會檢查一致性。",
     ),
 ) -> UnlinkSessionResponse:
-    """把某個 session(bag) 從指定使用者解除綁定。
+    """把一個或多個 session(bag) 從指定使用者解除綁定（批量操作）。
 
-    - payload 允許用 session_name 或 bag_filename 來定位 session（擇一）
+    - payload 用 session_names 或 bag_filenames 列表來指定要解除的 sessions（擇一，支援單一或多個）
     - 若 payload.unlink_all=true，會一次解除該 user 綁定的所有 sessions
-    - 預設會要求 session.user_code == user_code；不符合會回 409
+    - 預設會要求 session.user_code == user_code；不符合會略過並記錄在 failed 列表
     - 解除綁定方式：把 session.user_code 設成 None
     """
     user: Optional[UserProfile] = await UserProfile.find_one(UserProfile.user_code == user_code)
@@ -425,83 +482,140 @@ async def unlink_user_from_session(
             user_code=user_code,
             mode="all",
             unlinked_sessions=unlinked,
-            session=None,
+            failed=None,
         )
 
-    session: Optional[RealsensePoseExtractor] = None
-    if payload.session_name:
-        session = await RealsensePoseExtractor.find_one(
-            RealsensePoseExtractor.session_name == payload.session_name
-        )
-    elif payload.bag_filename:
-        session = await RealsensePoseExtractor.find_one(
-            RealsensePoseExtractor.bag_filename == payload.bag_filename
-        )
-
-    if not session:
-        raise HTTPException(status_code=404, detail="session not found")
-
-    # 一致性檢查：避免把別人的 session 解除掉
-    if (not force) and (session.user_code != user_code):
-        raise HTTPException(
-            status_code=409,
-            detail=f"session is linked to a different user_code: {session.user_code}",
-        )
-
-    session.user_code = None
-    session.updated_at = datetime.now()
-    await session.save()
+    # 批量解除（統一使用 list，支援單一或多個）
+    unlinked = 0
+    failed: List[str] = []
+    now = datetime.now()
+    
+    if payload.session_names:
+        for session_name in payload.session_names:
+            try:
+                session = await RealsensePoseExtractor.find_one(
+                    RealsensePoseExtractor.session_name == session_name
+                )
+                if not session:
+                    failed.append(session_name)
+                    continue
+                
+                # 一致性檢查
+                if (not force) and (session.user_code != user_code):
+                    failed.append(session_name)
+                    continue
+                
+                session.user_code = None
+                session.updated_at = now
+                await session.save()
+                unlinked += 1
+            except Exception:
+                failed.append(session_name)
+                continue
+    
+    elif payload.bag_filenames:
+        for bag_filename in payload.bag_filenames:
+            try:
+                session = await RealsensePoseExtractor.find_one(
+                    RealsensePoseExtractor.bag_filename == bag_filename
+                )
+                if not session:
+                    failed.append(bag_filename)
+                    continue
+                
+                # 一致性檢查
+                if (not force) and (session.user_code != user_code):
+                    failed.append(bag_filename)
+                    continue
+                
+                session.user_code = None
+                session.updated_at = now
+                await session.save()
+                unlinked += 1
+            except Exception:
+                failed.append(bag_filename)
+                continue
+    
     return UnlinkSessionResponse(
         user_code=user_code,
-        mode="single",
-        unlinked_sessions=1,
-        session=_to_session_item(session),
+        mode="batch",
+        unlinked_sessions=unlinked,
+        failed=failed if failed else None,
     )
 
 
-@router.delete("/{user_code}", response_model=DeleteUserResponse)
-async def delete_user(
-    user_code: str,
-    delete_sessions: bool = Query(
-        False,
-        description="若為 True，連同該使用者綁定的 sessions(DB 紀錄) 一併刪除；否則只解除綁定（保留 sessions）。",
-    ),
-) -> DeleteUserResponse:
+@router.post("/delete", response_model=DeleteUsersResponse)
+async def delete_users(
+    payload: DeleteUsersRequest,
+) -> DeleteUsersResponse:
     """
-    刪除使用者。
+    批量刪除使用者。
 
     預設行為（delete_sessions=false）：
     - 刪除 UserProfile
     - 將此 user_code 綁定的 RealsensePoseExtractor.user_code 設為 None（解除綁定）
+    
+    若 delete_sessions=true：
+    - 刪除 UserProfile
+    - 連同該使用者綁定的 sessions(DB 紀錄) 一併刪除
     """
-    user: Optional[UserProfile] = await UserProfile.find_one(UserProfile.user_code == user_code)
-    if not user:
-        raise HTTPException(status_code=404, detail=f"user not found: {user_code}")
+    total_requested = len(payload.user_codes)
+    deleted_users = 0
+    total_unlinked_sessions = 0
+    total_deleted_sessions = 0
+    failed: List[str] = []
+    details: List[DeleteUserResult] = []
 
-    sessions: List[RealsensePoseExtractor] = await (
-        RealsensePoseExtractor.find(RealsensePoseExtractor.user_code == user_code)
-        .to_list()
-    )
+    for user_code in payload.user_codes:
+        try:
+            user: Optional[UserProfile] = await UserProfile.find_one(
+                UserProfile.user_code == user_code
+            )
+            if not user:
+                failed.append(user_code)
+                continue
 
-    unlinked = 0
-    deleted = 0
+            sessions: List[RealsensePoseExtractor] = await (
+                RealsensePoseExtractor.find(RealsensePoseExtractor.user_code == user_code)
+                .to_list()
+            )
 
-    if delete_sessions:
-        for s in sessions:
-            await s.delete()
-            deleted += 1
-    else:
-        for s in sessions:
-            s.user_code = None
-            s.updated_at = datetime.now()
-            await s.save()
-            unlinked += 1
+            unlinked = 0
+            deleted = 0
+            now = datetime.now()
 
-    await user.delete()
+            if payload.delete_sessions:
+                for s in sessions:
+                    await s.delete()
+                    deleted += 1
+            else:
+                for s in sessions:
+                    s.user_code = None
+                    s.updated_at = now
+                    await s.save()
+                    unlinked += 1
 
-    return DeleteUserResponse(
-        user_code=user_code,
-        deleted_user=True,
-        unlinked_sessions=unlinked,
-        deleted_sessions=deleted,
+            await user.delete()
+
+            details.append(DeleteUserResult(
+                user_code=user_code,
+                deleted_user=True,
+                unlinked_sessions=unlinked,
+                deleted_sessions=deleted,
+            ))
+            deleted_users += 1
+            total_unlinked_sessions += unlinked
+            total_deleted_sessions += deleted
+
+        except Exception:
+            failed.append(user_code)
+            continue
+
+    return DeleteUsersResponse(
+        total_requested=total_requested,
+        deleted_users=deleted_users,
+        total_unlinked_sessions=total_unlinked_sessions,
+        total_deleted_sessions=total_deleted_sessions,
+        failed=failed,
+        details=details,
     )

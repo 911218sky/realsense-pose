@@ -1,4 +1,4 @@
-"""Pose / signal preprocessing utilities used by the rehab analyzer."""
+"""姿態/訊號前處理工具。"""
 
 from functools import partial
 from operator import attrgetter

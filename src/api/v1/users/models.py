@@ -32,6 +32,9 @@ class UserCreateRequest(BaseModel):
     # 教育程度（自由字串）
     education_level: Optional[str] = Field(None, max_length=128)
 
+    # 族群分類列表（預設為 ["正常人"]）
+    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表（例如：['正常人'], ['中風', '高齡'] 等），若不填則預設為 ['正常人']")
+
     # 診斷資訊（精簡版）
     diagnosis: Optional[DiagnosisInfo] = None
     # 醫療史/用藥/復健治療等（精簡版）
@@ -69,6 +72,9 @@ class UserUpdateRequest(BaseModel):
     # 教育程度
     education_level: Optional[str] = Field(None, max_length=128)
 
+    # 族群分類列表
+    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表（例如：['正常人'], ['中風', '高齡'] 等）")
+
     # 診斷資訊（若只想更新其中某些欄位，API 端會做 merge，不會整坨覆蓋）
     diagnosis: Optional[DiagnosisInfo] = None
     # 醫療史（merge 更新）
@@ -104,6 +110,9 @@ class UserItem(BaseModel):
     bmi: Optional[float] = None
     # 教育程度
     education_level: Optional[str] = None
+
+    # 族群分類列表
+    cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表")
 
     # 診斷資訊
     diagnosis: Optional[DiagnosisInfo] = None
@@ -145,13 +154,31 @@ class UserSessionItem(BaseModel):
     # 更新時間
     updated_at: datetime
 
-class DeleteUserResponse(BaseModel):
-    """刪除使用者回傳：DELETE /v1/users/{user_code}"""
+class DeleteUsersRequest(BaseModel):
+    """批量刪除使用者的請求 body：POST /v1/users/delete"""
+
+    user_codes: List[str] = Field(..., min_length=1, max_length=100, description="要刪除的 user_code 列表（最多 100 個）")
+    delete_sessions: bool = Field(False, description="若為 True，連同該使用者綁定的 sessions(DB 紀錄) 一併刪除；否則只解除綁定（保留 sessions）")
+
+
+class DeleteUserResult(BaseModel):
+    """單一使用者刪除結果"""
 
     user_code: str
     deleted_user: bool
     unlinked_sessions: int
     deleted_sessions: int
+
+
+class DeleteUsersResponse(BaseModel):
+    """批量刪除使用者回傳：POST /v1/users/delete"""
+
+    total_requested: int = Field(..., description="請求刪除的使用者數量")
+    deleted_users: int = Field(..., description="成功刪除的使用者數量")
+    total_unlinked_sessions: int = Field(..., description="總共解除綁定的 session 數量")
+    total_deleted_sessions: int = Field(..., description="總共刪除的 session 數量")
+    failed: List[str] = Field(default_factory=list, description="刪除失敗的 user_code 列表")
+    details: List[DeleteUserResult] = Field(default_factory=list, description="每個使用者的詳細刪除結果")
 
 
 class UserDetailResponse(BaseModel):
@@ -172,6 +199,8 @@ class UserListItem(BaseModel):
     user_code: str
     # 顯示用姓名
     name: str
+    # 族群分類列表
+    cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表")
     # 建立時間（DB 寫入）
     created_at: datetime
     # 更新時間（DB 寫入）
@@ -194,6 +223,8 @@ class UserSearchSuggestionItem(BaseModel):
     user_code: str
     # 顯示用姓名
     name: str
+    # 族群分類列表
+    cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表")
     # 建立時間（用來在同名時做辨識/排序）
     created_at: datetime
 
@@ -230,27 +261,28 @@ class LinkSessionRequest(BaseModel):
 
 
 class UnlinkSessionRequest(BaseModel):
-    """把「某個 session(bag)」從使用者解除綁定的請求 body：POST /v1/users/{user_code}/sessions/unlink
+    """把 session(bag) 從使用者解除綁定的請求 body：POST /v1/users/{user_code}/sessions/unlink
 
     你可以用：
-    - session_name 來指定要解除哪一筆 session
-    - 或 bag_filename 來指定（推薦）
+    - session_names 來指定要解除的 session_name 列表（支援單一或多個，最多 100 個）
+    - 或 bag_filenames 來指定要解除的 bag_filename 列表（推薦，支援單一或多個，最多 100 個）
     - 或 unlink_all=true 一次解除該使用者所有 sessions（此時不可同時帶其他參數）
     """
 
     unlink_all: bool = Field(False, description="若為 True，一次解除該使用者所有 sessions(bag) 綁定")
-    session_name: Optional[str] = Field(None, max_length=256)
-    bag_filename: Optional[str] = Field(None, max_length=256)
+    session_names: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 session_name 列表（最多 100 個）")
+    bag_filenames: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 bag_filename 列表（最多 100 個，推薦）")
 
     @model_validator(mode="after")
     def _ensure_target(self) -> "UnlinkSessionRequest":
         if self.unlink_all:
-            if self.session_name or self.bag_filename:
-                raise ValueError("unlink_all cannot be used together with session_name/bag_filename")
+            if self.session_names or self.bag_filenames:
+                raise ValueError("unlink_all cannot be used together with session_names/bag_filenames")
             return self
 
-        if not self.session_name and not self.bag_filename:
-            raise ValueError("Either session_name or bag_filename is required (or set unlink_all=true)")
+        if not self.session_names and not self.bag_filenames:
+            raise ValueError("Either session_names or bag_filenames is required (or set unlink_all=true)")
+        
         return self
 
 
@@ -260,14 +292,14 @@ class UnlinkSessionRequest(BaseModel):
 class UnlinkSessionResponse(BaseModel):
     """解除使用者與 session(bag) 的綁定回傳：POST /v1/users/{user_code}/sessions/unlink
 
-    - mode=single：解除單一 session，會帶 session 欄位
+    - mode=batch：批量解除（包含單一或多個），會帶 unlinked_sessions 數量和 failed 列表
     - mode=all：解除全部，會帶 unlinked_sessions 數量
     """
 
     user_code: str
-    mode: Literal["single", "all"]
+    mode: Literal["batch", "all"]
     unlinked_sessions: int
-    session: Optional[UserSessionItem] = None
+    failed: Optional[List[str]] = Field(None, description="批量模式下，解除失敗的 session_name 或 bag_filename 列表")
 
 
 class FindUserByBagRequest(BaseModel):
@@ -283,3 +315,21 @@ class FindUserByBagResponse(BaseModel):
     user: Optional[UserItem] = Field(None, description="找到的使用者資料（若有）")
     sessions: List[UserSessionItem] = Field(default_factory=list, description="該使用者的所有 session 列表（found=True 時）或使用該 BAG 檔案的 session 列表（found=False 時）")
     total_sessions: int = Field(0, description="該使用者的 session 總數（found=True 時）或使用該 BAG 檔案的 session 總數（found=False 時）")
+
+
+class CohortStatItem(BaseModel):
+    """單一族群的統計資訊。"""
+
+    cohort: str = Field(..., description="族群名稱")
+    user_count: int = Field(..., description="該族群的使用者數量")
+
+
+class CohortStatsResponse(BaseModel):
+    """族群統計回傳：GET /v1/users/cohorts
+
+    - cohorts: 所有不重複的族群列表（含使用者數量）
+    - total_cohorts: 總共有多少種族群
+    """
+
+    cohorts: List[CohortStatItem] = Field(..., description="所有族群的統計列表")
+    total_cohorts: int = Field(..., description="總共有多少種不同的族群")

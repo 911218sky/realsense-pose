@@ -1,4 +1,4 @@
-"""Gait analysis utilities (cadence, step length, stance/swing)."""
+"""步態分析工具（步頻、步長、站立/擺動期）。"""
 
 from functools import partial
 from operator import attrgetter
