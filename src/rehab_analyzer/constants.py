@@ -166,6 +166,38 @@ DEFAULT_DPI = 150
 # FFT 頻帶
 DEFAULT_FFT_BAND = (0.00, 2.0)
 
+# =============================================================================
+# 步態分析常數
+# =============================================================================
+
+# 最小步距比例：用於計算步態事件的最小間隔
+# min_dist = MIN_STEP_DISTANCE_RATIO * (60.0 / spm_guess) * fps
+MIN_STEP_DISTANCE_RATIO = 0.4
+
+# 峰值突出度乘數：用於自適應峰值檢測
+# prominence = PROMINENCE_MULTIPLIER * MAD
+PROMINENCE_MULTIPLIER = 2.5
+
+# 步態事件合併容差比例：用於合併相近的步態事件
+# tol_merge = STEP_MERGE_TOLERANCE_RATIO * (60.0 / spm_guess) * fps
+STEP_MERGE_TOLERANCE_RATIO = 0.15
+
+# 最小步態事件間隔比例：用於過濾過於密集的事件
+# min_frames = MIN_STEP_INTERVAL_RATIO * (60.0 / spm_guess) * fps
+MIN_STEP_INTERVAL_RATIO = 0.25
+
+# =============================================================================
+# 圈數偵測常數
+# =============================================================================
+
+# 離椅最短持續時間比例：離椅期間至少要持續的幀數比例
+# leave_run_needed = LEAVE_RUN_NEEDED_RATIO * fps
+LEAVE_RUN_NEEDED_RATIO = 0.25
+
+# 視覺化常數
+METERS_GAP_DEFAULT = 0.08  # 距離標籤間隔（公尺）
+MIN_METERS_TO_SHOW = 0.03  # 最小顯示距離（公尺）
+
 
 CONFIG_DEFAULT = CONFIG_4FPS
 

@@ -15,6 +15,10 @@ from .constants import (
     DEFAULT_MIN_V_ABS,
     DEFAULT_PROJECTION,
     DEFAULT_SMOOTH_WINDOW_S,
+    MIN_STEP_DISTANCE_RATIO,
+    PROMINENCE_MULTIPLIER,
+    STEP_MERGE_TOLERANCE_RATIO,
+    MIN_STEP_INTERVAL_RATIO,
 )
 
 from .cache_keys import method_key
@@ -121,12 +125,12 @@ class GaitAnalyzer(LapDetector):
         spm_guess = float(np.max([spm_guess_L, spm_guess_R, 100.0]))
 
         # 根據估計步頻限制峰距
-        min_dist = int(max(1, 0.4 * (60.0 / spm_guess) * fps))
+        min_dist = int(max(1, MIN_STEP_DISTANCE_RATIO * (60.0 / spm_guess) * fps))
 
         def adaptive_peaks(x: np.ndarray, distance: int) -> np.ndarray:
             """依據 MAD 自動決定 prominence 的 peak 拿取函式。"""
             mad = np.median(np.abs(x - np.median(x))) + 1e-9
-            prom = 2.5 * mad
+            prom = PROMINENCE_MULTIPLIER * mad
             idx, _ = find_peaks(x, distance=max(1, distance), prominence=prom)
             return idx.astype(int)
 
@@ -156,7 +160,7 @@ class GaitAnalyzer(LapDetector):
                     keep.append(int(j))
             return np.asarray(keep, dtype=int)
 
-        tol_merge = int(max(1, 0.15 * (60.0 / spm_guess) * fps))
+        tol_merge = int(max(1, STEP_MERGE_TOLERANCE_RATIO * (60.0 / spm_guess) * fps))
         idx_LHS = merge_events(idx_LHS_res, idx_LHS_v, tol_frames=tol_merge)
         idx_RHS = merge_events(idx_RHS_res, idx_RHS_v, tol_frames=tol_merge)
         idx_LTO = merge_events(idx_LTO_res, idx_LTO_v, tol_frames=tol_merge)
@@ -172,7 +176,7 @@ class GaitAnalyzer(LapDetector):
                     out.append(int(j))
             return np.asarray(out, dtype=int)
 
-        min_frames = int(max(1, 0.25 * (60.0 / spm_guess) * fps))
+        min_frames = int(max(1, MIN_STEP_INTERVAL_RATIO * (60.0 / spm_guess) * fps))
         idx_LHS = prune_too_close(idx_LHS, min_frames)
         idx_RHS = prune_too_close(idx_RHS, min_frames)
         idx_LTO = prune_too_close(idx_LTO, min_frames)
