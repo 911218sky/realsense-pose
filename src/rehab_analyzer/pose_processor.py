@@ -209,7 +209,7 @@ class PoseProcessor(DataLoader):
                 return int(getattr(self, sel))
             try:
                 return int(sel)
-            except Exception:
+            except (ValueError, TypeError):
                 raise ValueError(
                     f"未知的關節選擇 '{sel}'（不是整數，也不是類別常數名）"
                 )
