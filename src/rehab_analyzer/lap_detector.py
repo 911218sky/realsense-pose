@@ -20,10 +20,19 @@ from .constants import (
     DEFAULT_MIN_V_ABS,
     DEFAULT_MIN_TURN_WIDTH_S,
     DEFAULT_ANGULAR_VELOCITY_SMOOTH_S,
+    LEAVE_RUN_NEEDED_RATIO,
 )
 
 from .cache_keys import method_key
 from .pose_processor import PoseProcessor
+from .lap_utils import (
+    hysteresis_mask,
+    contiguous_run_bounds,
+    seg_path_len,
+    turn_dir_from_slope,
+    detect_turn_window_by_heading,
+)
+
 
 class LapDetector(PoseProcessor):
     """偵測離椅→繞錐→回椅坐下的圈數與相關時空資訊。"""
@@ -193,233 +202,65 @@ class LapDetector(PoseProcessor):
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "detect_laps_auto"))
     def detect_laps_auto(
         self,
-        # 偵測時使用的 2D 投影平面（xz / xy / yz）
         projection: str = DEFAULT_PROJECTION,
-        # 髖點座標平滑視窗長度（秒），會根據 fps 自動轉換成帧數
         smooth_window_s: float = DEFAULT_SMOOTH_WINDOW_S,
-        # 需在錐區停留的秒數門檻，低於此值不計入一圈
         cone_dwell_s: float = DEFAULT_CONE_DWELL_S,
-        # near chair/cone mask 的去抖動時間窗（秒）
         debounce_s: float = DEFAULT_DEBOUNCE_S,
-        # Y 高度差分平滑視窗（秒），用來判定站起 / 坐下
         ydiff_window_s: float = DEFAULT_YDIFF_WINDOW_S,
-        # y' 門檻，絕對值大於此視為上下動作
         sit_pos_thr: float = DEFAULT_SIT_POS_THR,
-        # 將候選 frame 聚成事件時允許的最大時間間隔
         group_gap_s: float = DEFAULT_GROUP_GAP_S,
-        # 角速度衰減到峰值 flat_frac 倍即視為轉彎結束
         flat_frac: float = DEFAULT_FLAT_FRAC,
-        # 檢測轉彎時所需的最小角速度 (deg/s)
         min_v_abs: float = DEFAULT_MIN_V_ABS,
-        # 轉彎區段至少要持續的秒數
         min_turn_width_s: float = DEFAULT_MIN_TURN_WIDTH_S,
-        # 指定椅子區域進/出半徑 (r_enter, r_exit)，缺省則自動估計
-        rC: Optional[tuple[float, float]] = None,
-        # 指定錐區進/出半徑 (r_enter, r_exit)，缺省則自動估計
-        rK: Optional[tuple[float, float]] = None,
+        rC: Optional[Tuple[float, float]] = None,
+        rK: Optional[Tuple[float, float]] = None,
     ) -> DetectLapsResult:
         """自動偵測圈數（離椅→錐→回椅且坐下）。
 
-        與原本流程相同，但 A/B 轉彎時間窗改用
-        `compute_pelvis_heading_unwrapped` 計算出來的骨盆朝向角斜率來決定。
-        
-        注意：smooth_window_s, ydiff_window_s, min_turn_width_s 皆以秒為單位，
-        會根據實際 fps 自動轉換成帧數，確保不同帧率下行為一致。
+        Parameters
+        ----------
+        projection : str
+            偵測時使用的 2D 投影平面（xz / xy）
+        smooth_window_s : float
+            髖點座標平滑視窗長度（秒）
+        cone_dwell_s : float
+            需在錐區停留的秒數門檻
+        debounce_s : float
+            near chair/cone mask 的去抖動時間窗（秒）
+        ydiff_window_s : float
+            Y 高度差分平滑視窗（秒）
+        sit_pos_thr : float
+            y' 門檻，絕對值大於此視為上下動作
+        group_gap_s : float
+            將候選 frame 聚成事件時允許的最大時間間隔
+        flat_frac : float
+            角速度衰減到峰值 flat_frac 倍即視為轉彎結束
+        min_v_abs : float
+            檢測轉彎時所需的最小角速度 (deg/s)
+        min_turn_width_s : float
+            轉彎區段至少要持續的秒數
+        rC : Optional[Tuple[float, float]]
+            指定椅子區域進/出半徑 (r_enter, r_exit)
+        rK : Optional[Tuple[float, float]]
+            指定錐區進/出半徑 (r_enter, r_exit)
+
+        Returns
+        -------
+        DetectLapsResult
+            偵測結果，包含圈數列表與區域參數
         """
-
-        def hysteresis_mask(
-            dist: np.ndarray,
-            r_enter: float,
-            r_exit: float,
-        ) -> np.ndarray:
-            """將距離轉成具有遲滯的進出區域布林 mask。"""
-            dist = np.asarray(dist, dtype=float)
-            mask = np.empty(dist.shape[0], dtype=bool)
-            inside = False
-
-            for i in range(dist.size):
-                d = dist[i]
-
-                if not np.isfinite(d):
-                    mask[i] = inside
-                    continue
-
-                if inside:
-                    inside = d < r_exit
-                else:
-                    inside = d <= r_enter
-
-                mask[i] = inside
-
-            return mask
-
-        def contiguous_run_bounds(mask: np.ndarray, center_idx: int) -> Tuple[int, int]:
-            """找出包含某索引的連續 True 段落邊界 [lo, hi]。"""
-            n_loc = mask.size
-
-            if not mask[center_idx]:
-                return center_idx, center_idx
-
-            lo = center_idx
-            while lo - 1 >= 0 and mask[lo - 1]:
-                lo -= 1
-
-            hi = center_idx
-            while hi + 1 < n_loc and mask[hi + 1]:
-                hi += 1
-
-            return lo, hi
-
-        def seg_path_len(P: np.ndarray, start_idx: int, end_idx: int) -> float:
-            """計算一段路徑的弧長（含端點）。"""
-            start_idx = max(0, int(start_idx))
-            end_idx = max(0, int(end_idx))
-            if end_idx <= start_idx:
-                return 0.0
-
-            seg = P[start_idx:end_idx]
-            if seg.shape[0] < 2:
-                return 0.0
-
-            diffs = np.diff(seg, axis=0)
-            return float(np.sum(np.linalg.norm(diffs, axis=1)))
-
+        # 便利函式：把 frame index 轉成時間秒數
         def ts_at(i: int) -> float:
-            """便利函式：把 frame index 轉成時間秒數。"""
             return float(self.t[i])
 
-        def detect_turn_window_by_heading(
-            theta: np.ndarray,
-            seg_start: int,
-            seg_end: int,
-            *,
-            flat_frac: float = 0.5,      # |v| < flat_frac * v_peak_dir 視為已變平
-            min_v_abs: float = 15.0,     # 峰值若小於這個，就當沒明顯轉彎
-            max_v_abs: float = 60.0,    # 峰值若大於這個，就當有明顯轉彎
-            min_width_frames: int = 5,    # 最短區段長度
-        ) -> tuple[int, int, float]:
-            """
-            在 [seg_start, seg_end] 找轉彎區段：
-
-            1. 在該 segment 上看 Δθ 的正負，決定「主要轉彎方向」 dir_sign。
-            2. 在 segment 上算角速度 v = dθ/dt，僅保留與 dir_sign 相同方向的部分：
-               v_dir = v * dir_sign，v_dir < 0 的點設為 0。
-            3. 在 v_dir 中找峰值，從峰值往左右擴展，直到 v_dir 掉到
-               flat_frac * v_peak_dir 以下為止。
-            4. 強制至少 min_width_frames，並對該段做線性回歸，回傳
-               (全域 start_idx, 全域 end_idx, 斜率 slope_deg_per_s)。
-            """
-
-            seg_start = int(seg_start)
-            seg_end = int(seg_end)
-            if seg_end <= seg_start:
-                return seg_start, seg_end, 0.0
-
-            # 只看這個 segment 內的 θ
-            theta_seg = theta[seg_start: seg_end + 1].astype(float)
-            n = theta_seg.size
-            if n < 3:
-                return seg_start, seg_end, 0.0
-
-            # 判斷這一整段 (seg_start ~ seg_end) 的「大方向」
-            delta_total = float(theta_seg[-1] - theta_seg[0])
-            if not np.isfinite(delta_total) or abs(delta_total) < 1e-3:
-                # 幾乎沒變化，就不特別縮窗
-                return seg_start, seg_end, 0.0
-
-            dir_sign = 1.0 if delta_total > 0.0 else -1.0
-
-            # 計算角速度 v = dθ/dt（只在 segment 上）
-            fps_local = float(self._estimate_fps())
-            dt = 1.0 / max(1.0, fps_local)
-
-            v = np.diff(theta_seg, prepend=theta_seg[0]) / dt
-            if not np.isfinite(v).any():
-                return seg_start, seg_end, 0.0
-
-            # 高帧率時對角速度做平滑，避免噪聲影響
-            v_smooth_window = max(1, int(round(DEFAULT_ANGULAR_VELOCITY_SMOOTH_S * fps_local)))
-            if v_smooth_window > 1 and n >= v_smooth_window:
-                ker = np.ones(v_smooth_window) / v_smooth_window
-                v = np.convolve(v, ker, mode="same")
-
-            # 只保留「與整體方向一致」的角速度
-            v_dir = v * dir_sign          # 期望方向的速度 > 0
-            v_dir[~np.isfinite(v_dir)] = 0.0
-            v_dir[v_dir < 0.0] = 0.0      # 反方向一律視為 0（避免被短暫抖動干擾）
-
-            v_peak_dir = float(v_dir.max())
-            if v_peak_dir < min_v_abs:
-                # 在主要方向上根本沒有明顯轉彎
-                return seg_start, seg_end, 0.0
-
-            # 這個 index 是相對於 segment 開頭的 0..n-1
-            peak_idx_local = int(np.argmax(v_dir))
-
-            # 設定「變平」門檻，從峰值往左右擴展
-            flat_thr = max(min_v_abs, min(v_peak_dir * float(flat_frac), max_v_abs))
-
-            # 往左邊找直到速度小於 flat_thr
-            lo = peak_idx_local
-            while lo - 1 >= 0 and v_dir[lo - 1] >= flat_thr:
-                lo -= 1
-
-            # 往右邊找直到速度小於 flat_thr
-            hi = peak_idx_local
-            while hi + 1 < n and v_dir[hi + 1] >= flat_thr:
-                hi += 1
-
-            # 至少要有 min_width_frames
-            length = hi - lo + 1
-            min_w = int(min_width_frames)
-            if length < min_w:
-                need = min_w - length
-                extra_left = need // 2
-                extra_right = need - extra_left
-                lo = max(0, lo - extra_left)
-                hi = min(n - 1, hi + extra_right)
-
-            # 對這段做線性回歸估計斜率 (deg/s)
-            t_seg = self.t[seg_start: seg_end + 1].astype(float)
-            t_win = t_seg[lo: hi + 1]
-            y_win = theta_seg[lo: hi + 1]
-
-            if t_win.size >= 2:
-                # 用相對時間可以避免時間值太大造成數值問題
-                x0 = t_win - t_win[0]
-                a, _ = np.polyfit(x0, y_win, 1)
-                slope = float(a)
-            else:
-                slope = 0.0
-
-            # 映回「全域」索引
-            st = seg_start + lo 
-            ed = seg_start + hi
-            st = max(seg_start, min(st, seg_end))
-            ed = max(st, min(ed, seg_end))
-
-            return st, ed, slope
-
-        def turn_dir_from_slope(a: float, *, min_abs_deg_per_s: float = 10.0) -> int:
-            """
-            根據斜率決定轉彎方向：
-            +1: θ 隨時間增加（例如向左 / 逆時針）
-            -1: θ 隨時間減少（例如向右 / 順時針）
-            0: 幾乎沒轉（|a| 太小）
-            """
-            if not np.isfinite(a) or abs(a) < min_abs_deg_per_s:
-                return 0
-            return 1 if a > 0 else -1
-
         # ---------------------- 主流程開始 ---------------------- #
-        # 先取得 fps，再將秒轉換成帧數
         fps = self._estimate_fps()
-        
-        # 將以秒為單位的參數轉換成帧數，並確保至少為 1
+
+        # 將以秒為單位的參數轉換成帧數
         smooth_window = max(1, int(round(smooth_window_s * fps)))
         ydiff_window = max(1, int(round(ydiff_window_s * fps)))
         min_width_frames = max(1, int(round(min_turn_width_s * fps)))
-        
+
         L2, R2, valid = self._compute_hip_points(
             projection=projection,
             smooth_window=smooth_window,
@@ -455,7 +296,7 @@ class LapDetector(PoseProcessor):
 
         cone_n = max(1, int(round(cone_dwell_s * fps)))
         k_db = max(1, int(round(debounce_s * fps)))
-        leave_run_needed = max(1, int(round(0.25 * fps)))
+        leave_run_needed = max(1, int(round(LEAVE_RUN_NEEDED_RATIO * fps)))
 
         # 對 near_chair / near_cone 做去抖動
         if k_db > 1:
@@ -597,8 +438,11 @@ class LapDetector(PoseProcessor):
             # ---------- A：錐區轉彎（用骨盆角度斜率） ----------
             turn_cone_start_idx, turn_cone_end_idx, slope_cone = detect_turn_window_by_heading(
                 theta=theta,
+                t_arr=self.t,
                 seg_start=int(cone_entry_idx),
                 seg_end=int(cone_exit_idx),
+                fps=fps,
+                angular_velocity_smooth_s=DEFAULT_ANGULAR_VELOCITY_SMOOTH_S,
                 flat_frac=flat_frac,
                 min_v_abs=min_v_abs,
                 min_width_frames=min_width_frames,
@@ -615,8 +459,11 @@ class LapDetector(PoseProcessor):
 
             turn_chair_start_idx, turn_chair_end_idx, slope_chair = detect_turn_window_by_heading(
                 theta=theta,
+                t_arr=self.t,
                 seg_start=int(reenter_idx),
                 seg_end=int(sit_start_idx),
+                fps=fps,
+                angular_velocity_smooth_s=DEFAULT_ANGULAR_VELOCITY_SMOOTH_S,
                 flat_frac=flat_frac,
                 min_v_abs=min_v_abs,
                 min_width_frames=min_width_frames,
