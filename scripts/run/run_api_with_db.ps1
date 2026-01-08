@@ -4,6 +4,11 @@ $ProjectRoot = Initialize-Script -ScriptRoot $PSScriptRoot
 $VenvPath = Get-VenvPath -ProjectRoot $ProjectRoot
 $Compose = Get-ComposeCmd
 
+# ========== 環境設定檔 ==========
+$ENV_FILE_DEBUG = '.debug.env'
+$ENV_FILE_DEFAULT = '.env'
+# ================================
+
 function Ensure-EnvFile {
   if (-not (Test-Path '.env')) {
     if (Test-Path 'env.example') {
@@ -55,7 +60,17 @@ try {
   Write-Host "[INFO] Repo: $ProjectRoot"
 
   Ensure-EnvFile
-  Load-DotEnv -Path '.env'
+
+  # 優先使用 debug env，沒有的話用 default env
+  if (Test-Path $ENV_FILE_DEBUG) {
+    $envFile = $ENV_FILE_DEBUG
+    $isDebugMode = $true
+  } else {
+    Write-Host "[INFO] Using $ENV_FILE_DEFAULT"
+    $envFile = $ENV_FILE_DEFAULT
+    $isDebugMode = $false
+  }
+  Load-DotEnv -Path $envFile
 
   if (-not $env:API_PORT) { $env:API_PORT = '8100' }
   if (-not $env:API_HOST) { $env:API_HOST = 'localhost' }
@@ -70,7 +85,7 @@ try {
   }
 
   Write-Host '[INFO] Ensuring Mongo+Redis are running (docker compose up -d)...'
-  $composeArgs = $Compose + @('--file', 'docker-compose.db.yml', '--env-file', '.env', 'up', '-d')
+  $composeArgs = $Compose + @('--file', 'docker-compose.db.yml', '--env-file', $envFile, 'up', '-d')
   & $composeArgs[0] $composeArgs[1..($composeArgs.Length - 1)]
   if ($LASTEXITCODE -ne 0) {
     Write-Host '[ERROR] Failed to start docker compose.'
@@ -92,6 +107,15 @@ try {
 
   $hostName = $env:API_HOST
   $port = [int]$env:API_PORT
+
+  # 在啟動 API 前顯示 DEBUG MODE 提示（避免被 Test-NetConnection 蓋住）
+  if ($isDebugMode) {
+    Write-Host ''
+    Write-Host '============================================' -ForegroundColor Yellow
+    Write-Host "  DEBUG MODE: Using $ENV_FILE_DEBUG" -ForegroundColor Yellow
+    Write-Host '============================================' -ForegroundColor Yellow
+    Write-Host ''
+  }
 
   Write-Host "[INFO] Starting API: http://$hostName`:$port"
   Invoke-VenvRun -VenvPath $VenvPath -Args @(
