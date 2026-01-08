@@ -16,13 +16,13 @@ ARG CLEAN_VENV=0
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy project files for dependency resolution
-COPY pyproject.toml .python-version ./
+COPY pyproject.toml uv.lock .python-version ./
 
 # Create venv and install dependencies using pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /opt/venv \
- && VIRTUAL_ENV=/opt/venv uv sync --frozen --no-dev --extra db --extra pose \
- && VIRTUAL_ENV=/opt/venv uv pip install "opencv-python-headless>=4.8,<5" \
+ && uv sync --frozen --no-dev --extra db --extra pose --python /opt/venv/bin/python \
+ && uv pip install "opencv-python-headless>=4.8,<5" --python /opt/venv/bin/python \
  && if [ "$CLEAN_VENV" = "1" ]; then \
       find /opt/venv -type d \( -name "__pycache__" -o -name "tests" \) -exec rm -rf {} + 2>/dev/null || true; \
     fi
