@@ -42,7 +42,7 @@ from .v1 import (
 IS_PROD = env_bool("IS_PROD", False)
 HOST = os.getenv("HOST", "localhost")
 PORT = int(os.getenv("PORT", 3000))
-PREFIX = os.getenv("PREFIX", "/v1")
+PREFIX = os.getenv("PREFIX", "/api/v1")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 CORS_ALLOW_ORIGINS = env_csv("CORS_ALLOW_ORIGINS")
 CORS_ALLOW_ORIGIN_REGEX = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "").strip() or None
