@@ -37,6 +37,7 @@ wheels/
 .env
 .env.local
 .env.*.local
+.debug.env
 
 # Data & Outputs (large files)
 data/
