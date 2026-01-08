@@ -16,7 +16,7 @@ ARG CLEAN_VENV=0
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy project files for dependency resolution
-COPY pyproject.toml uv.lock .python-version ./
+COPY pyproject.toml uv.lock .python-version README.md ./
 
 # Create venv and install dependencies using pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
