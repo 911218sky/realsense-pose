@@ -121,6 +121,9 @@ def _hmac_sha256_digest(secret: bytes, msg: str) -> bytes:
 
 def _unauthorized(detail: str) -> HTTPException:
     """回傳 401 錯誤。"""
+    from logger import setup_logger
+    logger = setup_logger("api.auth")
+    logger.warning(f"Auth failed: {detail}")
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
