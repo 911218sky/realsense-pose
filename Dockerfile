@@ -5,8 +5,8 @@ FROM python:3.11.14-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH"
+    UV_COMPILE_BYTECODE=0 \
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
@@ -15,13 +15,14 @@ ARG CLEAN_VENV=0
 # Copy uv binary directly
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-RUN python -m venv /opt/venv
+# Copy project files for dependency resolution
+COPY pyproject.toml .python-version ./
 
-COPY requirements.txt requirements_db.txt requirements_pose.txt ./
-
-# Install all deps in ONE uv call = faster resolution
+# Create venv and install dependencies using pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --no-compile -r requirements_db.txt -r requirements.txt -r requirements_pose.txt "opencv-python-headless>=4.8,<5" \
+    uv venv /opt/venv \
+ && VIRTUAL_ENV=/opt/venv uv sync --frozen --no-dev --extra db --extra pose \
+ && VIRTUAL_ENV=/opt/venv uv pip install "opencv-python-headless>=4.8,<5" \
  && if [ "$CLEAN_VENV" = "1" ]; then \
       find /opt/venv -type d \( -name "__pycache__" -o -name "tests" \) -exec rm -rf {} + 2>/dev/null || true; \
     fi
@@ -49,10 +50,11 @@ FROM python:3.11.14-slim-bookworm AS web-compressor
 
 WORKDIR /app
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY --from=web-downloader /web ./web
 COPY scripts/web/precompress_web.py ./scripts/web/precompress_web.py
 
-RUN pip install --no-cache-dir brotli \
+RUN uv pip install --system --no-cache brotli \
  && python ./scripts/web/precompress_web.py --web-dir ./web
 
 # ============================================
@@ -67,14 +69,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Runtime deps for opencv/mediapipe/realsense + ffmpeg (includes libx264 for H.264)
-# Use shared cache to speed up apt operations across builds
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       libgl1 libglib2.0-0 libusb-1.0-0 ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
-# Copy venv from builder (changes only when requirements.txt changes)
+# Copy venv from builder (changes only when pyproject.toml changes)
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy static config files (rarely changes)
