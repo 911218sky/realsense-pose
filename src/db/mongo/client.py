@@ -34,7 +34,8 @@ async def _ensure_ttl_index(
 
     try:
         indexes = []
-        async for idx in col.list_indexes():
+        cursor = await col.list_indexes()
+        async for idx in cursor:
             indexes.append(idx)
     except Exception as e:
         logger.warning("Could not list indexes for %s: %s", collection, e, exc_info=False)
