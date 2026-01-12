@@ -113,7 +113,7 @@ def seg_path_len(P: np.ndarray, start_idx: int, end_idx: int) -> float:
     ValueError
         如果 P 不是 2D 陣列
     """
-    P = np.asarray(P, dtype=float)
+    P = np.asarray(P, dtype=float)  # pyright: ignore[reportConstantRedefinition]
     if P.ndim != 2:
         raise ValueError(f"P 必須是 2D 陣列，取得 ndim={P.ndim}")
     

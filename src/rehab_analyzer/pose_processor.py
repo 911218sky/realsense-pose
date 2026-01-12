@@ -243,19 +243,19 @@ class PoseProcessor(DataLoader):
 
         proj = projection.lower()
         if proj == "xz":
-            L2 = Lh[:, [0, 2]]
-            R2 = Rh[:, [0, 2]]
+            L2 = Lh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
+            R2 = Rh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
         elif proj == "xy":
-            L2 = Lh[:, [0, 1]]
-            R2 = Rh[:, [0, 1]]
+            L2 = Lh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
+            R2 = Rh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
         else:
             raise ValueError("projection 僅支援 'xz' 或 'xy'")
 
-        L2[~valid] = 0.0
-        R2[~valid] = 0.0
+        L2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
+        R2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
 
-        L2 = self._moving_average(L2, smooth_window)
-        R2 = self._moving_average(R2, smooth_window)
+        L2 = self._moving_average(L2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
+        R2 = self._moving_average(R2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
         return L2, R2, valid
 
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_hip_separation_series"))
@@ -275,19 +275,19 @@ class PoseProcessor(DataLoader):
 
         proj = projection.lower()
         if proj == "xy":
-            L2 = Lh[:, [0, 1]]
-            R2 = Rh[:, [0, 1]]
+            L2 = Lh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
+            R2 = Rh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
         elif proj == "xz":
-            L2 = Lh[:, [0, 2]]
-            R2 = Rh[:, [0, 2]]
+            L2 = Lh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
+            R2 = Rh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
         else:
             raise ValueError("projection 僅支援 'xy' 或 'xz'")
 
-        L2[~valid] = 0.0
-        R2[~valid] = 0.0
+        L2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
+        R2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
 
-        L2 = self._moving_average(L2, smooth_window)
-        R2 = self._moving_average(R2, smooth_window)
+        L2 = self._moving_average(L2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
+        R2 = self._moving_average(R2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
 
         d = np.linalg.norm(L2 - R2, axis=1)
         return d, valid
@@ -366,7 +366,7 @@ class PoseProcessor(DataLoader):
             若提供，當 |R-L| 小於此值時沿用上一幀角度（避免噪聲導致亂跳）。
         """
         if L2 is None or R2 is None:
-            L2, R2, _ = self._compute_hip_points(projection="xz")
+            L2, R2, _ = self._compute_hip_points(projection="xz")  # pyright: ignore[reportConstantRedefinition]
         else:
             assert L2.shape == R2.shape and L2.shape[1] == 2, "L2/R2 需為 (N,2)"
         

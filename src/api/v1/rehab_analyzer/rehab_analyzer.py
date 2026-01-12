@@ -760,8 +760,8 @@ async def trajectory_payload(
                 rotated[..., 1] = 2 * cy - rotated[..., 1]
                 return rotated
 
-            L2 = _rotate_coords(L2)
-            R2 = _rotate_coords(R2)
+            L2 = _rotate_coords(L2)  # pyright: ignore[reportConstantRedefinition]
+            R2 = _rotate_coords(R2)  # pyright: ignore[reportConstantRedefinition]
             chair_pos = _rotate_coords(chair_pos)
             cone_pos = _rotate_coords(cone_pos)
 

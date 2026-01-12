@@ -130,7 +130,7 @@ class LapDetector(PoseProcessor):
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_speed_series"))
     def _speed_series(self, C2: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """根據 2D 中點軌跡計算速度與逐幀位移。"""
-        C2 = np.asarray(C2, dtype=float)
+        C2 = np.asarray(C2, dtype=float)  # pyright: ignore[reportConstantRedefinition]
         fps = self._estimate_fps()
         t = self.t
 
