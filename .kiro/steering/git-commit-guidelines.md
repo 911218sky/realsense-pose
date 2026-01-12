@@ -68,7 +68,86 @@ Scope: All commits to this repository
    git checkout main
    git merge --squash develop
    git commit -m "🔀 merge(develop): <release summary>"
-   git tag v1.x.x
+   git tag -a v1.x.x -m "Release v1.x.x - <release description>"
    git push origin main --tags
    ```
 3. Keep `main` clean with only release commits
+
+## Version Tagging
+
+### Semantic Versioning
+
+Follow [Semantic Versioning 2.0.0](https://semver.org/):
+
+```
+vMAJOR.MINOR.PATCH
+```
+
+- **MAJOR**: Incompatible API changes
+- **MINOR**: Backward-compatible functionality additions
+- **PATCH**: Backward-compatible bug fixes
+
+### Tag Format
+
+- Use annotated tags: `git tag -a v1.0.0 -m "message"`
+- Always prefix with `v`: `v1.0.0`, `v1.2.3`, `v2.0.0`
+- Tag message should describe the release
+
+### Examples
+
+```bash
+# Major release (breaking changes)
+git tag -a v2.0.0 -m "Release v2.0.0 - Major API redesign"
+
+# Minor release (new features)
+git tag -a v1.1.0 -m "Release v1.1.0 - Add user cohort management"
+
+# Patch release (bug fixes)
+git tag -a v1.0.1 -m "Release v1.0.1 - Fix trajectory rendering bug"
+```
+
+### Tag Management
+
+**Create and push tag:**
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0 - Initial stable release"
+git push origin v1.0.0
+```
+
+**List all tags:**
+```bash
+git tag
+```
+
+**Delete local tag:**
+```bash
+git tag -d v1.0.0
+```
+
+**Delete remote tag:**
+```bash
+git push origin :refs/tags/v1.0.0
+# or
+git push origin --delete v1.0.0
+```
+
+**View tag details:**
+```bash
+git show v1.0.0
+```
+
+### Release Notes
+
+When creating a GitHub Release for a tag, include:
+
+1. **What's New**: New features and improvements
+2. **Bug Fixes**: Issues resolved
+3. **Breaking Changes**: API changes requiring user action
+4. **Dependencies**: Updated dependencies
+5. **Contributors**: Acknowledge contributors
+
+### Version History
+
+Current version: `v1.0.0`
+
+Starting from v1.0.0, all previous tags have been cleaned up for a fresh start.
