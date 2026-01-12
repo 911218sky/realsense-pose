@@ -3,14 +3,14 @@
 
 包含影像讀取、格式轉換、圖形處理等工具。
 """
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .core import VisualizerCore
 
 if TYPE_CHECKING:
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
 
 
 def fmt_timestamp(t: float) -> str:
@@ -28,7 +28,7 @@ def imread_rgb(path: str) -> np.ndarray[Any, Any]:
     return np.asarray(img, dtype=np.uint8)
 
 
-def canvas_to_numpy_rgba(fig: "plt.Figure") -> np.ndarray[Any, Any]:
+def canvas_to_numpy_rgba(fig: "Figure") -> np.ndarray[Any, Any]:
     """
     將 Matplotlib Figure 轉成 RGBA uint8 numpy 陣列 (H, W, 4)。
 
@@ -39,7 +39,7 @@ def canvas_to_numpy_rgba(fig: "plt.Figure") -> np.ndarray[Any, Any]:
     # 優先使用 ARGB
     if hasattr(fig.canvas, "tostring_argb"):
         width, height = fig.canvas.get_width_height()
-        argb = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).reshape(
+        argb = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).reshape(  # pyright: ignore[reportAttributeAccessIssue]
             height, width, 4
         )
         rgba = argb[:, :, [1, 2, 3, 0]]  # ARGB -> RGBA
@@ -48,7 +48,7 @@ def canvas_to_numpy_rgba(fig: "plt.Figure") -> np.ndarray[Any, Any]:
     # 次選使用 RGB，再補一個 alpha 通道
     if hasattr(fig.canvas, "tostring_rgb"):
         width, height = fig.canvas.get_width_height()
-        rgb = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(
+        rgb = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(  # pyright: ignore[reportAttributeAccessIssue]
             height, width, 3
         )
         alpha = np.full((height, width, 1), 255, dtype=np.uint8)
@@ -107,6 +107,6 @@ class VisualizerUtilsMixin(VisualizerCore):
 
         return img
 
-    def _canvas_to_numpy_rgba(self, fig: "plt.Figure") -> np.ndarray[Any, Any]:
+    def _canvas_to_numpy_rgba(self, fig: "Figure") -> np.ndarray[Any, Any]:
         """將 Matplotlib Figure 轉成 RGBA uint8 numpy 陣列 (H, W, 4)。"""
         return canvas_to_numpy_rgba(fig)

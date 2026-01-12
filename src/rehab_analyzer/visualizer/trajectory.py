@@ -8,6 +8,8 @@ from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -121,7 +123,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         if rotate_180:
             cx = 0.5 * (xmin + xmax)
             cy = 0.5 * (ymin + ymax)
-            L2, R2, C2, chair_pos, cone_pos = self._rotate_all_coords(  # type: ignore[assignment]
+            L2, R2, C2, chair_pos, cone_pos = self._rotate_all_coords(  # pyright: ignore[reportConstantRedefinition]
                 L2, R2, C2, chair_pos, cone_pos, cx, cy
             )
 
@@ -201,8 +203,8 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
         # 預先擷取背景
         fig.canvas.draw()
-        bg_main = fig.canvas.copy_from_bbox(ax_main.bbox)  # type: ignore
-        bg_info = fig.canvas.copy_from_bbox(ax_info.bbox)  # type: ignore
+        bg_main = fig.canvas.copy_from_bbox(ax_main.bbox)  # pyright: ignore[reportAttributeAccessIssue]
+        bg_info = fig.canvas.copy_from_bbox(ax_info.bbox)  # pyright: ignore[reportAttributeAccessIssue]
 
         # FFmpeg 管線
         save_path = self._setup_video_output(
@@ -281,7 +283,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
     def _create_trajectory_figure(
         self, figsize: tuple[float, float], dpi: int, bg_color: str
-    ) -> tuple[plt.Figure, plt.Axes, plt.Axes, plt.Axes]:
+    ) -> tuple[Figure, Axes, Axes, Axes]:
         """建立軌跡影片的 Figure 和 Axes。"""
         fig = plt.figure(figsize=figsize, dpi=dpi)
         left_margin = 0.02
@@ -322,7 +324,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return handles
 
     def _draw_static_elements(
-        self, ax: plt.Axes, L2: np.ndarray[Any, Any], R2: np.ndarray[Any, Any], valid: np.ndarray[Any, Any],
+        self, ax: Axes, L2: np.ndarray[Any, Any], R2: np.ndarray[Any, Any], valid: np.ndarray[Any, Any],
         chair_pos: np.ndarray[Any, Any], cone_pos: np.ndarray[Any, Any],
         path_color_L: str, path_color_R: str, chair_color: str, cone_color: str,
         draw_radius: bool, rC: float, rK: float
@@ -340,7 +342,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
                 ax.add_patch(Circle(tuple(cone_pos), rK, fill=False, lw=1.5, ls="--", color=cone_color, alpha=0.9, clip_on=False))
 
     def _create_turn_scatters(
-        self, ax: plt.Axes,
+        self, ax: Axes,
         turn_cone_start_color: str, turn_cone_end_color: str,
         turn_chair_start_color: str, turn_chair_end_color: str
     ) -> dict[str, Any]:
@@ -372,7 +374,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return lap_first
 
     def _style_main_axes(
-        self, ax: plt.Axes, xmin: float, xmax: float, ymin: float, ymax: float, projection: str
+        self, ax: Axes, xmin: float, xmax: float, ymin: float, ymax: float, projection: str
     ) -> None:
         """設置主軸外觀。"""
         ax.set_title("Trajectory - chair & cone", fontsize=13, pad=6, color="#111")
@@ -395,7 +397,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
             ax.spines[side].set_visible(False)
         ax.grid(True, linestyle="--", alpha=0.18)
 
-    def _setup_info_axes(self, ax: plt.Axes) -> tuple[Any, Any]:
+    def _setup_info_axes(self, ax: Axes) -> tuple[Any, Any]:
         """設置底部資訊區。"""
         ax.set_xticks([]); ax.set_yticks([])
         for spine in ax.spines.values():
@@ -406,7 +408,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return text_time, text_speed
 
     def _create_dynamic_artists(
-        self, ax: plt.Axes, trail_color_L: str, trail_color_R: str, dot_color_L: str, dot_color_R: str
+        self, ax: Axes, trail_color_L: str, trail_color_R: str, dot_color_L: str, dot_color_R: str
     ) -> tuple[Any, Any, Any, Any, Any]:
         """創建動態繪圖物件。"""
         tail_L, = ax.plot([], [], lw=2.4, color=trail_color_L, zorder=3, animated=True)
