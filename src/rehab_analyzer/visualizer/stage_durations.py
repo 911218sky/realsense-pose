@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
 from utils import add_prefix_to_filename
 from ..rehab_analyzer import DetectLapsResult
@@ -209,11 +210,11 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
             handletextpad=0.4,
         )
 
-        fig.tight_layout(rect=[0, 0.06, 1, 1])
+        fig.tight_layout(rect=(0, 0.06, 1, 1))
 
         # 檔名與儲存
         filename = add_prefix_to_filename(save_name or "stage_durations.png", self.prefix)
-        save_path = Path(self.out_dir) / filename
+        save_path = Path(self.out_dir) / (filename or "stage_durations.png")
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path), bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
@@ -222,7 +223,7 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
 
     def _draw_stage_annotations(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         bars: list,
         sec: np.ndarray[Any, Any],
         meters_map: np.ndarray[Any, Any],

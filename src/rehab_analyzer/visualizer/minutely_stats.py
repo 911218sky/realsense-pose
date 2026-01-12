@@ -4,7 +4,7 @@
 以每圈開始時間所屬的分鐘為分箱，統計去程/迴轉/回程的平均耗時。
 """
 from pathlib import Path
-from typing import Any, List, Callable
+from typing import Any, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
