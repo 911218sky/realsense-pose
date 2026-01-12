@@ -14,7 +14,7 @@ from .auth_utils import (
     token_hash,
 )
 
-# 管理員驗證快取（使用 Redis；若 Redis 不可用則不快取）
+# 管理員驗證快取（使用 Redis；Redis 不可用時不快取）
 #
 # 目的：
 # - 避免每個 API request 都查詢 MongoDB（AdminSession / AdminAccount）
@@ -206,7 +206,7 @@ async def require_admin_account(
     提供給需要「拿到 AdminAccount」的路由使用的依賴。
 
     - 支援 Authorization: Bearer <token>
-    - 若無 header，則回退使用 cookie (ADMIN_TOKEN_COOKIE_NAME)
+    - 無 header 時，回退使用 cookie (ADMIN_TOKEN_COOKIE_NAME)
     """
     token: Optional[str] = None
 

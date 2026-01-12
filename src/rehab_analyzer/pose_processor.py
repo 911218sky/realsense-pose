@@ -198,7 +198,7 @@ class PoseProcessor(DataLoader):
 
         sel 可以是：
         - int：直接視為索引
-        - str：若是類別屬性名（例如 "L_HIP"），則取其數值；
+        - str：如果是類別屬性名（例如 "L_HIP"），則取其數值；
                否則嘗試轉成 int。
         """
         if isinstance(sel, int):

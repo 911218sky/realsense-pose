@@ -110,7 +110,7 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
     ) -> None:
         """
         設定圖形座標軸範圍。
-        若傳入 None 則保持原本 Matplotlib 自動範圍。
+        傳入 None 時保持原本 Matplotlib 自動範圍。
         """
         if xlim is not None:
             ax.set_xlim(*xlim)

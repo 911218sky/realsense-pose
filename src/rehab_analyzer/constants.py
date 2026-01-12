@@ -170,19 +170,19 @@ DEFAULT_FFT_BAND = (0.00, 2.0)
 # 步態分析常數
 # =============================================================================
 
-# 最小步距比例：用於計算步態事件的最小間隔
+# 最小步距比例：計算步態事件的最小間隔
 # min_dist = MIN_STEP_DISTANCE_RATIO * (60.0 / spm_guess) * fps
 MIN_STEP_DISTANCE_RATIO = 0.4
 
-# 峰值突出度乘數：用於自適應峰值檢測
+# 峰值突出度乘數：自適應峰值檢測
 # prominence = PROMINENCE_MULTIPLIER * MAD
 PROMINENCE_MULTIPLIER = 2.5
 
-# 步態事件合併容差比例：用於合併相近的步態事件
+# 步態事件合併容差比例：合併相近的步態事件
 # tol_merge = STEP_MERGE_TOLERANCE_RATIO * (60.0 / spm_guess) * fps
 STEP_MERGE_TOLERANCE_RATIO = 0.15
 
-# 最小步態事件間隔比例：用於過濾過於密集的事件
+# 最小步態事件間隔比例：過濾過於密集的事件
 # min_frames = MIN_STEP_INTERVAL_RATIO * (60.0 / spm_guess) * fps
 MIN_STEP_INTERVAL_RATIO = 0.25
 

@@ -174,7 +174,7 @@ class TimeTrackingMixin:
         """
         計算單調遞增的時間戳（秒）。
 
-        優先使用 frame_number，若不可用或發生回退則用 processed_frames。
+        優先使用 frame_number，不可用或發生回退時用 processed_frames。
         """
         if hasattr(frames, 'frame_number') and frames.frame_number is not None:
             cur_frame_number = int(frames.frame_number)

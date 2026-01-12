@@ -132,7 +132,7 @@ class FFmpegPipe:
                 )
             self._fallback_mode = False
         except OSError as e:
-            # pipe 模式失敗 → 啟用 fallback（寫 PNG 再合成速度較慢）
+            # pipe 模式失敗，啟用 fallback（寫 PNG 再合成速度較慢）
             print("FFmpegPipe: pipe mode failed. Fallback to temp-file mode. Error:", e)
             self.proc = None
             self._enable_fallback()

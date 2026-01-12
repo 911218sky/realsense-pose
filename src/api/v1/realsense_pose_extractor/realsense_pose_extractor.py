@@ -44,7 +44,7 @@ router = APIRouter(
     tags=["realsense-pose-extractor"]
 )
 
-# 公開路由 - 用於影片串流
+# 公開路由 - 影片串流
 public_router = APIRouter(
     prefix="/realsense-pose-extractor",
     tags=["realsense-pose-extractor-public"]

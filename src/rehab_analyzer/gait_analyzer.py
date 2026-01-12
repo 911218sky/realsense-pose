@@ -54,7 +54,7 @@ class GaitAnalyzer(LapDetector):
         t = self.t.astype(float)
         fps = float(self._estimate_fps())
 
-        # 這裡用最小步長 1/fps 矯正成單調遞增的 t，僅用於梯度計算。
+        # 用最小步長 1/fps 矯正成單調遞增的 t，僅用於梯度計算
         if t.size >= 2:
             eps = 1.0 / max(fps, 1e-6)
             for i in range(1, t.size):
@@ -250,7 +250,7 @@ class GaitAnalyzer(LapDetector):
             a: tuple[int, int],
             b: tuple[int, int],
         ) -> tuple[int, int] | None:
-            """回傳兩個閉區間的交集，若無交集則回傳 None。"""
+            """回傳兩個閉區間的交集，無交集時回傳 None。"""
             s = max(a[0], b[0])
             e = min(a[1], b[1])
             return (s, e) if s <= e else None
@@ -337,7 +337,7 @@ class GaitAnalyzer(LapDetector):
 
             return np.asarray(out, dtype=float) if out else np.array([], dtype=float)
 
-        # ---------- overall（整體區段） ----------
+        # overall（整體區段）
         LHS_in = filter_indices_in_spans(idx_LHS, allowed_spans)
         RHS_in = filter_indices_in_spans(idx_RHS, allowed_spans)
         LTO_in = filter_indices_in_spans(idx_LTO, allowed_spans)
@@ -505,7 +505,7 @@ class GaitAnalyzer(LapDetector):
             r_spm_min = float(rcnt / dur_eff * 60.0) if dur_eff > 0 else 0.0
             spm_min = max(l_spm_min, r_spm_min)
 
-            # 計算有效步長（跨腳步長，同 overall 定義）
+            # 計算有效步長（跨腳步長）
             l_steps = step_lengths_cross_feet(
                 curr_hs=LHS_win,
                 curr_xz=xzL,

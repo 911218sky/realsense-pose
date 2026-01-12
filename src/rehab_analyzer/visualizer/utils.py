@@ -101,7 +101,7 @@ class VisualizerUtilsMixin(VisualizerCore):
             )
             h, w = img.shape[:2]
 
-        # 若過大則裁切
+        # 過大時裁切
         if h > H or w > W:
             img = img[:H, :W]
 

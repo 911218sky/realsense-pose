@@ -176,7 +176,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
                 L2, R2, C2, chair_pos, cone_pos, cx, cy
             )
 
-        #計算採樣步距（根據速度和輸出幀率）
+        # 計算採樣步距（根據速度和輸出幀率）
         stride = max(1, int(round((fps_in * float(speed)) / float(fps_out))))
         idxs_full = np.arange(0, num_frames, stride, dtype=int)
         idxs_full = idxs_full[valid[idxs_full]]
@@ -196,7 +196,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         t_all = self._interpolate_time(num_frames, fps_in)
         t_sub = t_all[idxs_full]
 
-        #計算速度（瞬時和滑動平均）
+        # 計算速度（瞬時和滑動平均）
         _, spd_avg_arr = self._compute_speed_arrays(
             C2, t_all, idxs_full, fps_in, stride, avg_window_s, M
         )
@@ -256,7 +256,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
             ax_main, trail_color_L, trail_color_R, dot_color_L, dot_color_R
         )
 
-        # 預先擷取背景（用於 blitting 加速）
+        # 預先擷取背景以加速 blitting
         fig.canvas.draw()
         bg_main = fig.canvas.copy_from_bbox(ax_main.bbox)
         bg_info = fig.canvas.copy_from_bbox(ax_info.bbox)

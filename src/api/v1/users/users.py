@@ -209,7 +209,7 @@ async def get_cohort_stats() -> CohortStatsResponse:
 @router.get("/search", response_model=UserSearchSuggestionResponse)
 async def search_user_names(
     keyword: Optional[str] = Query(None, max_length=128, description="姓名關鍵字（前綴匹配）"),
-    cohort: Optional[List[str]] = Query(None, description="族群篩選列表（例如：['中風', '高齡']），會篩選同時屬於所有指定族群的使用者"),
+    cohort: Optional[List[str]] = Query(None, description="族群篩選列表，會篩選同時屬於所有指定族群的使用者"),
     page: int = Query(1, ge=1, description="頁碼（從 1 開始）"),
     page_size: int = Query(20, ge=1, le=200, description="每頁筆數"),
 ) -> UserSearchSuggestionResponse:

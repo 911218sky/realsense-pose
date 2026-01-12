@@ -32,25 +32,25 @@ class Lap:
     # 基本時間與總覽
     ts_start: float        # 起身開始時間
     ts_end: float          # 坐下完成時間
-    dur_total: float       # 總時間（ts_end - ts_start）
+    dur_total: float       # 總時間
 
     # 關鍵影格索引
-    idx_start: int               # 起身開始（索引）
-    idx_end: int                 # 坐下完成（索引）
+    idx_start: int               # 起身開始
+    idx_end: int                 # 坐下完成
     idx_onset_start: int         # 站起來的第一瞬間
     idx_onset_end: int           # 站起來的最後一瞬間
     idx_chair_sit_end: int       # 坐下的第一瞬間
     idx_chair_sit_start: int     # 坐下的最後一瞬間
-    idx_leave_chair: int         # 離開椅子區域（跨出椅區）
-    idx_reenter_chair: int       # 回到椅子區域（再次進入椅區）
-    idx_enter_cone: int          # 進入錐子區域（錐內開始）
-    idx_exit_cone: int           # 離開錐子區域（錐內結束）
-    idx_sit_start: int           # 準備坐下開始（坐下動作的起點）
+    idx_leave_chair: int         # 離開椅子區域
+    idx_reenter_chair: int       # 回到椅子區域
+    idx_enter_cone: int          # 進入錐子區域
+    idx_exit_cone: int           # 離開錐子區域
+    idx_sit_start: int           # 準備坐下開始
 
     # 轉身（以臀距定義的轉身窗口）
     idx_turn_cone_start: int     # 在錐區內開始轉身
     idx_turn_cone_end: int       # 在錐區內結束轉身
-    idx_turn_chair_start: int    # 在椅區內開始轉身（回椅對位）
+    idx_turn_chair_start: int    # 在椅區內開始轉身
     idx_turn_chair_end: int      # 在椅區內結束轉身
 
     # 分段時長（秒）
@@ -127,7 +127,7 @@ class OffsetFFTResult:
     """
     f: np.ndarray          # (nfreq,) 頻率（Hz）
     Pxx: np.ndarray        # (nfreq,) 單邊功率譜密度（視 scaling，常見為 spectrum/density）
-    f_peak: float          # 主峰頻率（Hz；若無有效頻譜則 NaN）
+    f_peak: float          # 主峰頻率（Hz；無有效頻譜時為 NaN）
     p_peak: float          # 主峰的 PSD 值（與 Pxx 同單位）
 
     def to_dict(self) -> dict:
@@ -165,7 +165,7 @@ class IntervalGaitMetrics:
 
     # 區間對應的資料邊界
     start_frame: int  # 起始 frame index（含）
-    end_frame: int  # 結束 frame index（不含或含：依上層統計定義；目前用於顯示/切片）
+    end_frame: int  # 結束 frame index
     start_time_s: float  # 區間起始時間（秒）
     end_time_s: float  # 區間結束時間（秒）
 
@@ -187,7 +187,7 @@ class IntervalGaitMetrics:
     l_stance_s_mean: float  # 左腳支撐期平均秒數
     r_stance_s_mean: float  # 右腳支撐期平均秒數
 
-    # 選擇性：保留步數，常用於品質檢查或 UI 顯示
+    # 保留步數，用於品質檢查或 UI 顯示
     left_step_count: int = 0  # 左腳步數（count）
     right_step_count: int = 0  # 右腳步數（count）
     
@@ -240,7 +240,7 @@ class LapPhaseTimes:
     back: float  # 回程起點（秒）
     turn2: float  # 椅子前對位轉身事件（秒）
     start: float  # 一圈開始時間（秒）
-    half: float  # 半程時間（秒；常用於 go/back 分界）
+    half: float  # 半程時間（秒）
     end: float  # 一圈結束時間（秒）
     lap_duration: float  # 一圈總秒數
 
@@ -261,7 +261,7 @@ class SitStandEvent:
     height_m: float  # 觸發事件的高度特徵值（m；通常是髖/關節高度）
     threshold: float  # 判斷門檻（同 height 的單位）
     fps: float  # 偵測時使用的 fps（frames/sec）
-    t_lo: float = 0.0  # 可選：事件視窗下界（秒；用於畫圖/標註）
+    t_lo: float = 0.0  # 事件視窗下界（秒）
 
     def to_dict(self) -> dict:
         """轉為可 JSON 序列化的 dict。"""

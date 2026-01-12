@@ -383,7 +383,7 @@ class LapDetector(PoseProcessor):
                 continue
             t_cone = ls + idx[0]
 
-            # ---------- 起身段（離椅） ----------
+            # 起身段（離椅）
             j = np.searchsorted(onset_candidates, ls, side="left") - 1
             if j >= onset_candidates.size or j < 0:
                 continue
@@ -435,7 +435,7 @@ class LapDetector(PoseProcessor):
                 t_cone,
             )
 
-            # ---------- A：錐區轉彎（用骨盆角度斜率） ----------
+            # A：錐區轉彎（用骨盆角度斜率）
             turn_cone_start_idx, turn_cone_end_idx, slope_cone = detect_turn_window_by_heading(
                 theta=theta,
                 t_arr=self.t,
@@ -450,7 +450,7 @@ class LapDetector(PoseProcessor):
             dir_cone = turn_dir_from_slope(slope_cone)
             delta_cone = theta[turn_cone_end_idx] - theta[turn_cone_start_idx]
 
-            # ---------- B：椅子附近轉身（用骨盆角度斜率） ----------
+            # B：椅子附近轉身（用骨盆角度斜率）
             reenter_idx = int(le)
             j = np.searchsorted(chair_sit_idx, reenter_idx, side="left")
             if j >= chair_sit_idx.size or j < 0:

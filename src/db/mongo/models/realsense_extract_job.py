@@ -28,7 +28,7 @@ class RealsenseExtractJob(Document):
     bag_input: str = Field(..., description="原始輸入的 bag 參數（可能是相對路徑/ID）。")
     bag_resolved_path: str = Field(..., description="resolve 後的 bag 絕對路徑（server 路徑字串）。")
     session_name: str = Field(..., description="本次提取對應的 session_name（UUID 字串）。")
-    user_code: Optional[str] = Field(None, description="對應 UserProfile.user_code（若未知/未綁定則 None）。")
+    user_code: Optional[str] = Field(None, description="對應 UserProfile.user_code，未知/未綁定時為 None。")
     force: bool = Field(False, description="是否強制重跑（忽略既有結果/快取）。")
     config: Dict[str, Any] = Field(default_factory=dict, description="提取設定（原封不動存下，方便追溯）。")
 
@@ -38,8 +38,8 @@ class RealsenseExtractJob(Document):
 
     created_at: datetime = Field(default_factory=datetime.now, description="建立時間（server local time）。")
     updated_at: datetime = Field(default_factory=datetime.now, description="最後更新時間（server local time）。")
-    started_at: Optional[datetime] = Field(None, description="實際開始跑任務的時間（若尚未開始則 None）。")
-    finished_at: Optional[datetime] = Field(None, description="任務完成時間（成功/失敗；若尚未結束則 None）。")
+    started_at: Optional[datetime] = Field(None, description="實際開始跑任務的時間，尚未開始時為 None。")
+    finished_at: Optional[datetime] = Field(None, description="任務完成時間（成功/失敗），尚未結束時為 None。")
 
     expires_at: datetime = Field(
         default_factory=lambda: datetime.now() + timedelta(minutes=REALSENSE_EXTRACT_JOB_RETENTION_MINUTES),

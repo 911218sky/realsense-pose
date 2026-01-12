@@ -311,7 +311,7 @@ def main(args: Optional[argparse.Namespace] = None) -> None:
             left_joint = joint_pair.get("left_joint", None)
             right_joint = joint_pair.get("right_joint", None)
 
-            # 若設定不完整則略過
+            # 設定不完整就略過
             if left_joint is None or right_joint is None:
                 logger.warning(
                     "left_joint or right_joint is None, skip save_trajectory_video",

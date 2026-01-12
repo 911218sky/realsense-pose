@@ -633,7 +633,7 @@ async def multi_fft_from_series(
             f = np.asarray(res.f, dtype=float)
             Pxx = np.asarray(res.Pxx, dtype=float)
             
-            # 避免全部都是 0 或 NaN，若空資料則直接回報空頻譜
+            # 避免全部都是 0 或 NaN，空資料時直接回報空頻譜
             if f.size == 0 or Pxx.size == 0:
                 results.append(
                     {

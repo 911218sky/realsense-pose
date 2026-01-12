@@ -110,7 +110,7 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
         end_ts = np.array([lap.ts_end for lap in laps], dtype=float)
         lap_len = np.array([lap.dist_lap_path_m for lap in laps], dtype=float)
 
-        # 距離資訊（只顯示在 2 / 3 / 4 / 5 段）
+        # 距離資訊（只顯示在 2/3/4/5 段）
         outbound = np.array([lap.dist_outbound_m for lap in laps], dtype=float)
         turnpath = np.array([lap.dist_cone_turn_path_m for lap in laps], dtype=float)
         retpath = np.array([lap.dist_return_m for lap in laps], dtype=float)

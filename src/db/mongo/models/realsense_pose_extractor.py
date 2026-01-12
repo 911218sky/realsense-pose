@@ -19,8 +19,8 @@ class RealsensePoseExtractor(Document):
     npy_path: str = Field(..., description="提取後的 npy 輸出路徑（server 路徑字串）。")
     video_path: Optional[str] = Field(None, description="提取後的影片輸出路徑（若有啟用 save_video）。")
     bag_path: str = Field(..., description="輸入 bag 檔路徑（server 路徑字串）。")
-    bag_filename: Optional[str] = Field(None, description="BAG 檔案名稱（從 bag_path 提取，例如：1_1_607.bag）。")
-    bag_hash: Optional[str] = Field(None, description="bag 檔內容雜湊（用於去重/快取；若未計算則 None）。")
+    bag_filename: Optional[str] = Field(None, description="BAG 檔案名稱，從 bag_path 提取。")
+    bag_hash: Optional[str] = Field(None, description="bag 檔內容雜湊，未計算時為 None。")
     created_at: datetime = Field(default_factory=datetime.now, description="建立時間（server local time）。")
     updated_at: datetime = Field(default_factory=datetime.now, description="最後更新時間（server local time）。")
 

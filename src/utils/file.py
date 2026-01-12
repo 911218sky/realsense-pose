@@ -3,7 +3,7 @@ from pathlib import Path
 
 def ensure_dir(path: str):
     """
-    確保指定的目錄存在，若不存在則遞迴建立。
+    確保指定的目錄存在，不存在時遞迴建立。
 
     參數:
         path (str): 要確保存在的目錄路徑（可以是相對或絕對路徑）。
@@ -22,7 +22,7 @@ def ensure_file(path: str,
     """
     確保指定檔案存在（若不存在就建立）。選項：
       - content: 若提供，會把這個字串寫入檔案（建立或覆蓋時使用）。
-      - overwrite: 若 True，且檔案已存在，會以 content 覆蓋（若 content is None，會清空檔案）。
+      - overwrite: 若 True，且檔案已存在，會以 content 覆蓋（content is None 時會清空檔案）。
                    若 False，且檔案已存在，則保留原檔不做變動。
       - encoding: 檔案編碼（預設 utf-8）。
 
@@ -38,20 +38,20 @@ def ensure_file(path: str,
     if p.exists() and p.is_dir():
         raise IsADirectoryError(f"Path '{p}' is a directory, not a file.")
 
-    # 確保 parent 目錄存在（若 parent 為空則不做）
+    # 確保 parent 目錄存在
     if p.parent:
         p.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         if p.exists():
             if overwrite:
-                # 覆蓋（若 content 為 None，就清空檔案）
+                # 覆蓋（content 為 None 時清空檔案）
                 with p.open("w", encoding=encoding) as f:
                     if content is not None:
                         _ = f.write(content)
-            # 若不覆蓋，直接返回現有檔案
+            # 不覆蓋，直接返回現有檔案
         else:
-            # 檔案不存在，建立並根據 content 寫入（若 content 為 None 則建立空檔）
+            # 檔案不存在，建立並寫入（content 為 None 時建立空檔）
             with p.open("w", encoding=encoding) as f:
                 if content is not None:
                     _ = f.write(content)
@@ -98,7 +98,7 @@ def add_prefix_to_filename(
         raise ValueError("mode must be one of: preserve_full, no_dir")
 
 def setup_logger(name: str, log_file: str | None = None, level: int = logging.INFO) -> logging.Logger:
-    """建立 logger，輸出到終端機，若有指定 log_file 則同時寫檔。"""
+    """建立 logger，輸出到終端機，有指定 log_file 時同時寫檔。"""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
