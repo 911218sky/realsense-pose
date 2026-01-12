@@ -1,10 +1,9 @@
 import logging
 from pathlib import Path
-from typing import Optional, Union
 
 def ensure_dir(path: str):
     """
-    確保指定的目錄存在，若不存在則遞迴建立。
+    確保指定的目錄存在，不存在時遞迴建立。
 
     參數:
         path (str): 要確保存在的目錄路徑（可以是相對或絕對路徑）。
@@ -17,13 +16,13 @@ def ensure_dir(path: str):
     return p
 
 def ensure_file(path: str,
-                content: Optional[str] = None,
+                content: str | None = None,
                 overwrite: bool = False,
                 encoding: str = "utf-8") -> Path:
     """
     確保指定檔案存在（若不存在就建立）。選項：
       - content: 若提供，會把這個字串寫入檔案（建立或覆蓋時使用）。
-      - overwrite: 若 True，且檔案已存在，會以 content 覆蓋（若 content is None，會清空檔案）。
+      - overwrite: 若 True，且檔案已存在，會以 content 覆蓋（content is None 時會清空檔案）。
                    若 False，且檔案已存在，則保留原檔不做變動。
       - encoding: 檔案編碼（預設 utf-8）。
 
@@ -39,33 +38,33 @@ def ensure_file(path: str,
     if p.exists() and p.is_dir():
         raise IsADirectoryError(f"Path '{p}' is a directory, not a file.")
 
-    # 確保 parent 目錄存在（若 parent 為空則不做）
+    # 確保 parent 目錄存在
     if p.parent:
         p.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         if p.exists():
             if overwrite:
-                # 覆蓋（若 content 為 None，就清空檔案）
+                # 覆蓋（content 為 None 時清空檔案）
                 with p.open("w", encoding=encoding) as f:
                     if content is not None:
-                        f.write(content)
-            # 若不覆蓋，直接返回現有檔案
+                        _ = f.write(content)
+            # 不覆蓋，直接返回現有檔案
         else:
-            # 檔案不存在，建立並根據 content 寫入（若 content 為 None 則建立空檔）
+            # 檔案不存在，建立並寫入（content 為 None 時建立空檔）
             with p.open("w", encoding=encoding) as f:
                 if content is not None:
-                    f.write(content)
+                    _ = f.write(content)
         return p
     except PermissionError as e:
         # 把更清楚的錯誤訊息往上傳
         raise PermissionError(f"Permission denied creating/writing file '{p}': {e}") from e
 
 def add_prefix_to_filename(
-    path_str: Optional[Union[str, Path]] = None,
-    prefix: Optional[str] = None,
+    path_str: str | Path | None = None,
+    prefix: str | None = None,
     mode: str = "preserve_full",
-) -> str:
+) -> str | None:
     """
     加 prefix 到檔名（不改變 extension）。
     If prefix is None or empty -> return original path as Path.
@@ -98,8 +97,8 @@ def add_prefix_to_filename(
     else:
         raise ValueError("mode must be one of: preserve_full, no_dir")
 
-def setup_logger(name: str, log_file: Optional[str] = None, level: int = logging.INFO) -> logging.Logger:
-    """建立 logger，輸出到終端機，若有指定 log_file 則同時寫檔。"""
+def setup_logger(name: str, log_file: str | None = None, level: int = logging.INFO) -> logging.Logger:
+    """建立 logger，輸出到終端機，有指定 log_file 時同時寫檔。"""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger

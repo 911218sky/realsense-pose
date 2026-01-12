@@ -4,8 +4,9 @@
 上圖為 cadence (spm)，下圖為 mean step length (m)。
 """
 from pathlib import Path
-from typing import Optional, Tuple, Callable
+from typing import Any, Callable
 
+from matplotlib.axes import Axes
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -36,15 +37,15 @@ class StepLengthBarsMixin(VisualizerUtilsMixin):
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
-        max_minutes: Optional[int] = None,
+        max_minutes: int | None = None,
         dpi: int = 170,
         figsize_per_minute: float = 1.0,
         row_height: float = 3.2,
         bar_width: float = 0.28,
         capsize: float = 3.0,
-        save_name: Optional[str] = None,
-        spm_ylim: Optional[Tuple[float, float]] = None,
-        steplen_ylim: Optional[Tuple[float, float]] = None,
+        save_name: str | None = None,
+        spm_ylim: tuple[float, float | None] = None,
+        steplen_ylim: tuple[float, float | None] = None,
     ) -> Path:
         """
         產生單張圖（上：步頻 spm、下：步長 m），每分鐘一根柱。
@@ -107,6 +108,8 @@ class StepLengthBarsMixin(VisualizerUtilsMixin):
         fig.suptitle(f"{self.prefix} - Per-minute cadence & step length", y=0.995)
 
         filename = add_prefix_to_filename(save_name or "minutely_cadence_step_length_bars.png", self.prefix)
+        if filename is None:
+            filename = "minutely_cadence_step_length_bars.png"
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
@@ -116,9 +119,9 @@ class StepLengthBarsMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _annotate_bars(
-        axis: plt.Axes,
-        bar_container,
-        values: np.ndarray,
+        axis: Axes,
+        bar_container: Any,
+        values: np.ndarray[Any, Any],
         fmt: Callable[[float], str],
     ) -> None:
         """在柱頂標註數值。"""

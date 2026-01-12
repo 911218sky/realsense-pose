@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -53,7 +53,7 @@ WEB_INDEX = WEB_DIR / "index.html"
 logger = setup_logger("api")
 
 # 後端啟動識別（每次服務重啟都會改變）
-# - 用於前端偵測「後端已重啟」並清理 service worker / CacheStorage
+# 用於前端偵測後端已重啟並清理 service worker / CacheStorage
 BOOT_ID = os.getenv("BOOT_ID", "").strip() or uuid.uuid4().hex
 BOOT_TS = int(time.time())
 
@@ -131,7 +131,7 @@ app.add_middleware(PayloadDecodeMiddleware)
 
 # Minimal public endpoints (helpful for load balancers / smoke tests)
 @app.get("/", include_in_schema=False)
-async def root() -> dict:
+async def root() -> dict | FileResponse:
     if SERVE_WEB and WEB_INDEX.is_file():
         return FileResponse(WEB_INDEX)
     return {

@@ -10,7 +10,8 @@ visualizer dependencies in minimal Docker images (e.g. Alpine).
 from .rehab_analyzer import RehabilitationSessionAnalyzer
 from . import constants
 
-__all__ = ["RehabilitationSessionAnalyzer", "constants", "analyzer_cli", "RehabSummaryVisualizer"]
+# Note: analyzer_cli and RehabSummaryVisualizer are lazy-loaded via __getattr__
+__all__ = ["RehabilitationSessionAnalyzer", "constants"]
 
 
 def __getattr__(name: str):

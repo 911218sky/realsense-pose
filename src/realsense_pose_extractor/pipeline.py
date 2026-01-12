@@ -1,7 +1,7 @@
 """RealSense pipeline 初始化與時間戳處理。"""
 
 import threading
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import pyrealsense2 as rs
 
@@ -43,7 +43,7 @@ def _start_pipeline_with_timeout(pipeline: rs.pipeline, config: rs.config, timeo
     return result["profile"]
 
 
-def _fmt_enum(v) -> str:
+def _fmt_enum(v: Any) -> str:
     """將 enum 轉為字串，失敗時回傳 repr。"""
     try:
         return str(v)
@@ -51,7 +51,7 @@ def _fmt_enum(v) -> str:
         return repr(v)
 
 
-def _log_bag_metadata(logger, profile: "rs.pipeline_profile") -> None:
+def _log_bag_metadata(logger: Any, profile: "rs.pipeline_profile") -> None:
     """輸出 bag 檔的 metadata：device info、stream 格式與 intrinsics。"""
     lines = []
     try:
@@ -170,11 +170,11 @@ class TimeTrackingMixin:
         self._first_frame_number = None
         self._processed_frames = 0
 
-    def _get_frame_timestamp(self, frames, frame_idx: int) -> float:
+    def _get_frame_timestamp(self, frames: Any, frame_idx: int) -> float:
         """
         計算單調遞增的時間戳（秒）。
 
-        優先使用 frame_number，若不可用或發生回退則用 processed_frames。
+        優先使用 frame_number，不可用或發生回退時用 processed_frames。
         """
         if hasattr(frames, 'frame_number') and frames.frame_number is not None:
             cur_frame_number = int(frames.frame_number)

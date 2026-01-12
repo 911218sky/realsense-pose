@@ -4,8 +4,9 @@
 包含 swing% 熱力圖和 stance/swing 時間柱狀圖。
 """
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any
 
+from matplotlib.axes import Axes
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -36,9 +37,9 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         *,
         dpi: int = 150,
         figsize_per_col: float = 0.9,
-        save_name: Optional[str] = None,
-        vmin_pct: Optional[float] = None,
-        vmax_pct: Optional[float] = None,
+        save_name: str | None = None,
+        vmin_pct: float | None = None,
+        vmax_pct: float | None = None,
     ) -> Path:
         """
         使用 compute_gait_summary().per_interval 製作 swing% 熱力圖，
@@ -100,6 +101,8 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         ax.set_title(f"{self.prefix} - Swing percentage (per minute)")
 
         filename = add_prefix_to_filename(save_name or "swing_info_heatmap.png", self.prefix)
+        if filename is None:
+            filename = "swing_info_heatmap.png"
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
@@ -114,16 +117,16 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
-        max_minutes: Optional[int] = None,
+        max_minutes: int | None = None,
         dpi: int = 170,
         figsize_per_minute: float = 0.9,
         row_height: float = 3.1,
         bar_width: float = 0.28,
         group_gap: float = 0.18,
         capsize: float = 3.0,
-        save_name: Optional[str] = None,
-        stance_ylim: Optional[Tuple[float, float]] = None,
-        swing_ylim: Optional[Tuple[float, float]] = None,
+        save_name: str | None = None,
+        stance_ylim: tuple[float, float | None] = None,
+        swing_ylim: tuple[float, float | None] = None,
     ) -> Path:
         """
         使用 compute_gait_summary().per_interval 直接繪製：
@@ -207,7 +210,10 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         ax2.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False, ncol=1, title="Side")
 
         filename = save_name or "minutely_stance_swing_bars.png"
-        save_path = self.out_dir / add_prefix_to_filename(filename, self.prefix)
+        prefixed_filename = add_prefix_to_filename(filename, self.prefix)
+        if prefixed_filename is None:
+            prefixed_filename = filename
+        save_path = self.out_dir / prefixed_filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
         plt.close(fig)
@@ -216,9 +222,9 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _annotate_stance_swing_bars(
-        axis: plt.Axes,
-        bar_container,
-        values: np.ndarray,
+        axis: Axes,
+        bar_container: Any,
+        values: np.ndarray[Any, Any],
     ) -> None:
         """在柱頂顯示秒數。"""
         if not np.isfinite(values).any():

@@ -73,9 +73,3 @@ async def migrate() -> Dict[str, int]:
     except Exception as e:
         logger.error(f"  Migration failed: {e}")
         return {"error": str(e)}
-
-
-# Optional: Add helper functions below if needed
-async def _helper_function():
-    """Helper function for complex migration logic."""
-    pass

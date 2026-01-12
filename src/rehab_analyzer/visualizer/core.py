@@ -4,13 +4,12 @@
 提供共用的輸出目錄、前綴名稱和軸顯示設定。
 """
 from pathlib import Path
-from typing import Optional, Tuple, Dict, TYPE_CHECKING
+from typing import Dict
+
+from matplotlib.axes import Axes
 
 from ..entities import XYZPair
 from ..rehab_analyzer import RehabilitationSessionAnalyzer
-
-if TYPE_CHECKING:
-    import matplotlib.pyplot as plt
 
 # 軸標籤顯示名稱設定（僅作為說明用途；實際標籤由 axis_convention 決定）
 # - standard   : X = 左右（lateral, left+, right-）
@@ -39,7 +38,7 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
         self,
         npy_path: str,
         out_dir: str,
-        prefix: Optional[str] = None,
+        prefix: str | None = None,
         axis_convention: str = "standard",
     ) -> None:
         super().__init__(npy_path)
@@ -82,7 +81,7 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
             mapping = ("X", "Y", "Z")
         return mapping[dim]
 
-    def _axis_labels_for_pair(self, pair: str) -> Tuple[str, str]:
+    def _axis_labels_for_pair(self, pair: str) -> tuple[str, str]:
         """
         依據 pair（例如 'xz', 'yz'）回傳 (dependent, independent) 軸的顯示文字。
 
@@ -104,14 +103,14 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
 
     def _apply_limits(
         self,
-        ax: "plt.Axes",
+        ax: Axes,
         *,
-        xlim: Optional[Tuple[float, float]] = None,
-        ylim: Optional[Tuple[float, float]] = None,
+        xlim: tuple[float, float | None] | None = None,
+        ylim: tuple[float, float | None] | None = None,
     ) -> None:
         """
         設定圖形座標軸範圍。
-        若傳入 None 則保持原本 Matplotlib 自動範圍。
+        傳入 None 時保持原本 Matplotlib 自動範圍。
         """
         if xlim is not None:
             ax.set_xlim(*xlim)

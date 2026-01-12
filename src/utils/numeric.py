@@ -1,18 +1,15 @@
 from fractions import Fraction
-from typing import Union
 
 __all__ = ["to_fraction"]
 
-def to_fraction(x: Union[str, float, int]) -> float:
+def to_fraction(x: str | float | int) -> float:
     """
     把 '20%' 或 '0.2' 或 0.2 或 '1/15' 轉成 fraction (0..1) 的 float。
     若無法解析會丟 ValueError。
     """
     if isinstance(x, (float, int)):
         return float(x)
-    if not isinstance(x, str):
-        raise TypeError(f"to_fraction 不支援類型: {type(x)} (value={x})")
-
+    # x is str
     xs = x.strip()
     if xs == "":
         raise ValueError("空字串無法轉換為 fraction")

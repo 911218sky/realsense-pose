@@ -8,9 +8,10 @@ Pose npy 校正模組：修正因距離變化造成的尺度漂移與相機俯�
 注意：index 33 的時間戳列 [0,0,t] 不會被修改，無效點 (0,0,0) 也會保持原樣。
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional, Sequence, Tuple
+from typing import Any, Literal
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
@@ -23,7 +24,7 @@ __all__ = [
 ]
 
 # 用來估算每幀尺度的骨頭清單（選相對穩定、不易因動作變形的長度）
-DEFAULT_BONES: Tuple[Tuple[int, int], ...] = (
+DEFAULT_BONES: tuple[tuple[int, int], ...] = (
     (23, 24),  # 左右髖距
     (11, 12),  # 左右肩距
     (11, 23),  # 軀幹左側
@@ -35,7 +36,7 @@ DEFAULT_BONES: Tuple[Tuple[int, int], ...] = (
 )
 
 # 用來推估地面與相機 pitch 的腳部關節
-DEFAULT_GROUND_JOINTS: Tuple[int, ...] = (27, 28, 29, 30, 31, 32)
+DEFAULT_GROUND_JOINTS: tuple[int, ...] = (27, 28, 29, 30, 31, 32)
 
 
 @dataclass(frozen=True)
@@ -45,12 +46,12 @@ class CalibrationConfig:
     mode: Literal["auto", "scale", "pitch", "scale+pitch"] = "auto"
 
     # scale 校正參數
-    bones: Tuple[Tuple[int, int], ...] = DEFAULT_BONES
-    scale_clip: Tuple[float, float] = (0.5, 2.0)
+    bones: tuple[tuple[int, int], ...] = DEFAULT_BONES
+    scale_clip: tuple[float, float] = (0.5, 2.0)
     smooth_scale_s: float = 0.75
 
     # pitch 校正參數
-    ground_joints: Tuple[int, ...] = DEFAULT_GROUND_JOINTS
+    ground_joints: tuple[int, ...] = DEFAULT_GROUND_JOINTS
     ground_quantile: float = 0.90
     min_ground_points: int = 200
     auto_pitch_min_deg: float = 2.0
@@ -62,7 +63,7 @@ class PoseNpyCalibrator:
     def __init__(self, cfg: CalibrationConfig = CalibrationConfig()):
         self.cfg = cfg
 
-    def calibrate_array(self, arr: np.ndarray) -> np.ndarray:
+    def calibrate_array(self, arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         """校正 pose array，只處理前 33 個關節，保留 index 33 的時間戳列。"""
         cfg = self.cfg
         arr = np.asarray(arr)
@@ -135,11 +136,12 @@ class PoseNpyCalibrator:
     def calibrate_npy(
         self,
         *,
-        npy_path: Optional[str | Path] = None,
-        arr: Optional[np.ndarray] = None,
-        out_path: Optional[str | Path] = None,
+        npy_path: str | Path | None = None,
+        arr: np.ndarray[Any, Any] | None = None,
+        out_path: str | Path | None = None,
     ) -> Path:
         """讀取 pose npy、校正、存檔。若 out_path 為 None，會加上 `_calib.npy` 尾碼。"""
+        in_path: Path | None = None
         if npy_path is not None:
             in_path = Path(npy_path)
             arr = np.load(in_path)
@@ -150,6 +152,8 @@ class PoseNpyCalibrator:
         out_arr = self.calibrate_array(arr)
 
         if out_path is None:
+            if in_path is None:
+                raise ValueError("out_path must be provided when npy_path is None")
             out_path = in_path.with_name(f"{in_path.stem}_calib.npy")
 
         out_path = Path(out_path)
@@ -157,14 +161,12 @@ class PoseNpyCalibrator:
         np.save(out_path, out_arr)
         return out_path
 
-    def _estimate_fps_from_t(self, t: np.ndarray) -> Optional[float]:
+    def _estimate_fps_from_t(self, t: np.ndarray[Any, Any]) -> float | None:
         """從時間戳序列估計 FPS。"""
-        if t is None:
+        t_arr = np.asarray(t, dtype=float).ravel()
+        if t_arr.size < 3:
             return None
-        t = np.asarray(t, dtype=float).ravel()
-        if t.size < 3:
-            return None
-        dt = np.diff(t)
+        dt = np.diff(t_arr)
         dt = dt[np.isfinite(dt) & (dt > 0)]
         if dt.size == 0:
             return None
@@ -173,7 +175,7 @@ class PoseNpyCalibrator:
             return None
         return float(np.clip(fps, 1.0, 240.0))
 
-    def _fill_forward(self, x: np.ndarray, fill_value: float) -> np.ndarray:
+    def _fill_forward(self, x: np.ndarray[Any, Any], fill_value: float) -> np.ndarray[Any, Any]:
         """Forward-fill NaN 值。"""
         out = x.astype(float).copy()
         last = fill_value
@@ -184,7 +186,7 @@ class PoseNpyCalibrator:
                 out[i] = last
         return out
 
-    def _moving_average(self, data: np.ndarray, k: int) -> np.ndarray:
+    def _moving_average(self, data: np.ndarray[Any, Any], k: int) -> np.ndarray[Any, Any]:
         """移動平均，自動補洞。"""
         if k is None or int(k) <= 1:
             return data
@@ -219,18 +221,18 @@ class PoseNpyCalibrator:
 
         return d[:, 0] if was_1d else d
 
-    def _valid_mask(self, pose: np.ndarray) -> np.ndarray:
+    def _valid_mask(self, pose: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         """回傳 (N,J) 的 mask，標記有效關節（非全零）。"""
         return np.any(pose != 0.0, axis=2)
 
     def _compute_anchor(
         self,
-        pose: np.ndarray,
-        valid: np.ndarray,
+        pose: np.ndarray[Any, Any],
+        valid: np.ndarray[Any, Any],
         *,
         left_hip: int = 23,
         right_hip: int = 24,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """計算每幀的縮放中心點（優先用左右髖中點）。"""
         n, j, _ = pose.shape
         out = np.zeros((n, 3), dtype=float)
@@ -262,12 +264,12 @@ class PoseNpyCalibrator:
 
     def _compute_frame_scales(
         self,
-        pose: np.ndarray,
-        valid: np.ndarray,
-        bones: Sequence[Tuple[int, int]],
+        pose: np.ndarray[Any, Any],
+        valid: np.ndarray[Any, Any],
+        bones: Sequence[tuple[int, int]],
         *,
         eps: float = 1e-6,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, Any]:
         """用骨頭長度中位數估算每幀尺度。"""
         n, j, _ = pose.shape
 
@@ -289,19 +291,19 @@ class PoseNpyCalibrator:
             return np.full((n,), np.nan, dtype=float)
 
         L = np.vstack(lengths).T
-        s: np.ndarray = np.nanmedian(L, axis=1)
+        s: np.ndarray[Any, Any] = np.nanmedian(L, axis=1)
         s[(~np.isfinite(s)) | (s <= eps)] = np.nan
         return s
 
     def _estimate_pitch_angle_rad_from_ground(
         self,
-        pose: np.ndarray,
-        valid: np.ndarray,
+        pose: np.ndarray[Any, Any],
+        valid: np.ndarray[Any, Any],
         ground_joints: Sequence[int],
         *,
         quantile: float,
         min_points: int,
-    ) -> Optional[float]:
+    ) -> float | None:
         """用腳部接地點估計相機 pitch 角度（rad）。"""
         _n, j, _ = pose.shape
         joints = [idx for idx in ground_joints if 0 <= idx < j]

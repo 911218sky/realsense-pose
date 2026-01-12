@@ -89,7 +89,7 @@ class CompareRequest(BaseModel):
 
 
 class GetBenchmarkRequest(BaseModel):
-    """查詢基準值請求（用於過濾指標類別）。"""
+    """查詢基準值請求，用於過濾指標類別。"""
     categories: Optional[List[Literal["lap_time", "gait", "speed_distance", "turn"]]] = Field(
         None,
         description="要回傳的指標類別（可選，預設回傳全部）"

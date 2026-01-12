@@ -26,7 +26,7 @@ class ExtractResponse(BaseModel):
     """提取結果回傳。"""
 
     bag_path: str = Field(..., description="原始 .bag 檔路徑。")
-    bag_filename: str = Field(..., description="BAG 檔案名稱（例如：1_1_607.bag）。")
+    bag_filename: str = Field(..., description="BAG 檔案名稱。")
     npy_path: str = Field(..., description="輸出的關節序列檔路徑。")
     video_path: Optional[str] = Field(None, description="輸出的影片檔路徑（若有啟用 save_video）。")
     session_name: str = Field(..., description="此處理任務的 session 名稱。")
@@ -61,9 +61,9 @@ class RealsensePoseExtractorItem(BaseModel):
 
     session_name: str = Field(..., description="Session 名稱。")
     npy_path: str = Field(..., description="輸出 npy 路徑。")
-    video_path: Optional[str] = Field(None, description="輸出影片路徑（若有）。")
+    video_path: Optional[str] = Field(None, description="輸出影片路徑。")
     bag_path: str = Field(..., description="來源 bag 路徑。")
-    bag_filename: str = Field(..., description="BAG 檔案名稱（例如：1_1_607.bag）。")
+    bag_filename: str = Field(..., description="BAG 檔案名稱。")
     bag_hash: Optional[str] = Field(None, description="bag 內容 hash。")
     created_at: datetime = Field(..., description="建立時間。")
     updated_at: datetime = Field(..., description="更新時間。")
@@ -126,7 +126,7 @@ class VideoAvailabilityResponse(BaseModel):
 # ---------- Bag list models ----------
 
 class BagFileItem(BaseModel):
-    """伺服器上的 bag 檔案資訊（用於列表）。"""
+    """伺服器上的 bag 檔案資訊。"""
 
     bag_id: str = Field(..., description="給 API 使用的識別（通常是相對路徑，如 'subdir/1.bag'）。")
     name: str = Field(..., description="檔名（不含路徑）。")

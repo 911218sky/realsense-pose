@@ -3,7 +3,7 @@
 
 RehabSummaryVisualizer 繼承所有 Mixin，可呼叫所有繪圖/影片輸出方法。
 """
-from typing import Optional
+
 
 from .stage_durations import StageDurationsPlotterMixin
 from .minutely_stats import MinutelyStageDurationBarsMixin
@@ -38,7 +38,7 @@ class RehabSummaryVisualizer(
         self,
         npy_path: str,
         out_dir: str,
-        prefix: Optional[str] = None,
+        prefix: str | None = None,
         axis_convention: str = "standard",
     ) -> None:
         super().__init__(npy_path, out_dir, prefix, axis_convention=axis_convention)

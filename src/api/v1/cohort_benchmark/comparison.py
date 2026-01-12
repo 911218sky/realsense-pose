@@ -83,7 +83,7 @@ def compute_diff_pct(user_val: float, benchmark_val: float) -> float:
         benchmark_val: 族群基準數值
 
     Returns:
-        差異百分比，若 benchmark_val 為 0 則回傳 0.0
+        差異百分比，benchmark_val 為 0 時回傳 0.0
     """
     if benchmark_val == 0:
         return 0.0

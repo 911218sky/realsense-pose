@@ -7,7 +7,6 @@ from rehab_analyzer.constants import (
    DEFAULT_MIN_V_ABS,
    DEFAULT_FLAT_FRAC,
    DEFAULT_K_SMOOTH,
-   DEFAULT_FFT_BAND,
 )
 
 class AnalyzerBaseParams(BaseModel):
@@ -225,7 +224,7 @@ class StageDurationEntry(BaseModel):
    duration_s: float = Field(..., description="該階段耗時 (s)。")
    distance_m: Optional[float] = Field(
       None,
-      description="該階段行走距離 (m)，若不適用則為 None。",
+      description="該階段行走距離 (m)，不適用時為 None。",
    )
 
 
@@ -370,8 +369,8 @@ class SpeedHeatmapResponse(BaseModel):
       ..., description="速度值矩陣（row=lap-1，col=進度索引）；None 表示缺值。"
    )
    marks: List[SpeedHeatmapMark] = Field(..., description="各圈錐桶轉身區間位置。")
-   vmin: Optional[float] = Field(None, description="顏色下限（若自動則回傳實際計算值）。")
-   vmax: Optional[float] = Field(None, description="顏色上限（若自動則回傳實際計算值）。")
+   vmin: Optional[float] = Field(None, description="顏色下限（自動時回傳實際計算值）。")
+   vmax: Optional[float] = Field(None, description="顏色上限（自動時回傳實際計算值）。")
 
 
 class SwingInfoHeatmapResponse(BaseModel):
@@ -496,11 +495,11 @@ class TrajectoryLap(BaseModel):
    lap_index: int = Field(..., description="圈次（1-based）。")
    payload_start_k: Optional[int] = Field(
       None,
-      description="此圈在 payload frames 中的起點索引 k（0-based；若此圈沒有落在 payload 內則為 None）。",
+      description="此圈在 payload frames 中的起點索引 k（0-based；此圈沒有落在 payload 內時為 None）。",
    )
    payload_end_k: Optional[int] = Field(
       None,
-      description="此圈在 payload frames 中的終點索引 k（0-based；若此圈沒有落在 payload 內則為 None）。",
+      description="此圈在 payload frames 中的終點索引 k（0-based；此圈沒有落在 payload 內時為 None）。",
    )
    markers: TrajectoryLapMarkers
 
@@ -511,7 +510,7 @@ class TrajectoryMeta(BaseModel):
    rotate_180: bool = Field(..., description="是否已對輸出座標做 180° 旋轉（前端不需再旋轉）。")
    bounds: TrajectoryBounds = Field(
       ...,
-      description="世界座標 bounds（用於把 uint16 反量化回世界座標，也可用於畫布映射）。",
+      description="世界座標 bounds，用於把 uint16 反量化回世界座標，也可用於畫布映射。",
    )
    encoding: Literal["u16_xy_lr_zlib_b64"] = Field(
       "u16_xy_lr_zlib_b64",

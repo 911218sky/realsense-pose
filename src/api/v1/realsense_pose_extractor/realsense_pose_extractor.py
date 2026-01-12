@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 import aiofiles
 from bson import ObjectId
 from fastapi import APIRouter, Body, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from api.config import BAG_DIR, NPY_DIR, VIDEO_DIR
 from config import load_config
@@ -44,7 +44,7 @@ router = APIRouter(
     tags=["realsense-pose-extractor"]
 )
 
-# 公開路由 - 用於影片串流
+# 公開路由 - 影片串流
 public_router = APIRouter(
     prefix="/realsense-pose-extractor",
     tags=["realsense-pose-extractor-public"]
@@ -128,7 +128,7 @@ async def list_realsense_pose_sessions(
 
         users: List[UserProfile] = await (
             UserProfile.find({"name": {"$regex": name_pattern, "$options": "i"}})
-            .sort(-UserProfile.created_at)
+            .sort([("created_at", -1)])
             .limit(limit_users)
             .to_list()
         )
@@ -175,7 +175,7 @@ async def list_realsense_pose_sessions(
     skip = (page - 1) * page_size if total else 0
 
     docs: List[RealsensePoseExtractor] = await (
-        query.sort(-RealsensePoseExtractor.created_at).skip(skip).limit(page_size).to_list()
+        query.sort([("created_at", -1)]).skip(skip).limit(page_size).to_list()
     )
 
     items = [
@@ -220,7 +220,7 @@ async def search_session_names(
         RealsensePoseExtractor.find(
             {"session_name": {"$regex": pattern, "$options": "i"}}
         )
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .limit(limit)
         .to_list()
     )

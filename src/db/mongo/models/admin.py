@@ -19,7 +19,7 @@ class AdminAccount(Document):
         default_factory=list,
         description="邀請鏈（由誰邀請而來的 admin_code 串列），用於追溯邀請關係。",
     )
-    invited_by_code: Optional[str] = Field(None, description="直接邀請者的 admin_code（若無則為 None）。")
+    invited_by_code: Optional[str] = Field(None, description="直接邀請者的 admin_code，無時為 None。")
     created_at: datetime = Field(default_factory=datetime.now, description="建立時間（server local time）。")
     updated_at: datetime = Field(default_factory=datetime.now, description="最後更新時間（server local time）。")
 
@@ -40,10 +40,10 @@ class AdminInvitation(Document):
     inviter_code: str = Field(..., description="邀請者的 admin_code。")
     inviter_username: str = Field(..., description="邀請者的 username（便於查詢/顯示）。")
     expires_at: datetime = Field(..., description="到期時間（Mongo TTL 會在此時間後清理）。")
-    used_by_code: Optional[str] = Field(None, description="被邀請者註冊後的 admin_code（若未使用則 None）。")
-    used_by_username: Optional[str] = Field(None, description="被邀請者註冊後的 username（若未使用則 None）。")
-    used_at: Optional[datetime] = Field(None, description="邀請碼被使用的時間（若未使用則 None）。")
-    revoked_at: Optional[datetime] = Field(None, description="邀請碼被撤銷的時間（若未撤銷則 None）。")
+    used_by_code: Optional[str] = Field(None, description="被邀請者註冊後的 admin_code，未使用時為 None。")
+    used_by_username: Optional[str] = Field(None, description="被邀請者註冊後的 username，未使用時為 None。")
+    used_at: Optional[datetime] = Field(None, description="邀請碼被使用的時間，未使用時為 None。")
+    revoked_at: Optional[datetime] = Field(None, description="邀請碼被撤銷的時間，未撤銷時為 None。")
     created_at: datetime = Field(default_factory=datetime.now, description="建立時間（server local time）。")
     updated_at: datetime = Field(default_factory=datetime.now, description="最後更新時間（server local time）。")
 
@@ -70,7 +70,7 @@ class AdminSession(Document):
     expires_at: datetime = Field(..., description="到期時間（Mongo TTL 會在此時間後清理）。")
     last_used_at: datetime = Field(default_factory=datetime.now, description="最後一次使用時間（server local time）。")
     created_at: datetime = Field(default_factory=datetime.now, description="建立時間（server local time）。")
-    revoked_at: Optional[datetime] = Field(None, description="撤銷時間（若未撤銷則 None）。")
+    revoked_at: Optional[datetime] = Field(None, description="撤銷時間，未撤銷時為 None。")
 
     class Settings:
         name = "admin_session"

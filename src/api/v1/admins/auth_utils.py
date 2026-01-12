@@ -3,7 +3,7 @@ import hmac
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple, cast
 
 from fastapi import Response
 
@@ -18,7 +18,8 @@ ADMIN_TOKEN_COOKIE_NAME = os.getenv("ADMIN_TOKEN_COOKIE_NAME", "admin_token")
 # 是否啟用 Secure 屬性（預設關閉，可用環境變數 ADMIN_TOKEN_COOKIE_SECURE 啟用）
 ADMIN_TOKEN_COOKIE_SECURE = os.getenv("ADMIN_TOKEN_COOKIE_SECURE", "false").lower() == "true"
 # 設定 SameSite 屬性（預設為 'lax'，可用環境變數 ADMIN_TOKEN_COOKIE_SAMESITE 設定）
-ADMIN_TOKEN_COOKIE_SAMESITE = os.getenv("ADMIN_TOKEN_COOKIE_SAMESITE", "lax")
+_samesite_value = os.getenv("ADMIN_TOKEN_COOKIE_SAMESITE", "lax").lower()
+ADMIN_TOKEN_COOKIE_SAMESITE = cast(Literal["lax", "strict", "none"], _samesite_value if _samesite_value in ("lax", "strict", "none") else "lax")
 
 
 def hash_password(password: str, salt_hex: Optional[str] = None) -> Tuple[str, str]:
@@ -84,6 +85,7 @@ async def issue_session(admin: AdminAccount) -> tuple[str, AdminSession]:
         expires_at=expires_at,
         last_used_at=now,
         created_at=now,
+        revoked_at=None,
     )
     await session.insert()
     return token, session

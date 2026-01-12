@@ -1,8 +1,12 @@
 """cachedmethod 的 cache key 工具。"""
 
+from typing import Any
+
 import numpy as np
 from cachetools.keys import hashkey
-def method_key(prefix: str, *args, **kwargs):
+
+
+def method_key(prefix: str, *args: Any, **kwargs: Any) -> tuple:
     """產生 cachedmethod 用的 key。
 
     為了避免 list / ndarray 這種不可雜湊物件，這裡會把它們濾掉，

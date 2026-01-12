@@ -97,7 +97,7 @@ async def register_admin(payload: RegisterRequest, response: Response) -> AuthTo
         if not payload.invite_code:
             raise HTTPException(status_code=400, detail="invite_code is required")
 
-        invite_doc: Optional[AdminInvitation] = await AdminInvitation.find_one(AdminInvitation.code == payload.invite_code)
+        invite_doc = await AdminInvitation.find_one(AdminInvitation.code == payload.invite_code)
         if not invite_doc or not invite_doc.is_active:
             raise HTTPException(status_code=400, detail="invite_code is invalid or expired")
 
@@ -290,7 +290,7 @@ async def list_admins(
     skip = (page - 1) * page_size if total else 0
     docs: List[AdminAccount] = await (
         AdminAccount.find_all()
-        .sort(-AdminAccount.created_at)
+        .sort([("created_at", -1)])
         .skip(skip)
         .limit(page_size)
         .to_list()

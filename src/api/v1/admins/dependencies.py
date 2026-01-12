@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Optional, Sequence, Tuple
+from typing import Optional,  Tuple
 
 from redis import asyncio as aioredis
 
@@ -14,7 +14,7 @@ from .auth_utils import (
     token_hash,
 )
 
-# 管理員驗證快取（使用 Redis；若 Redis 不可用則不快取）
+# 管理員驗證快取（使用 Redis；Redis 不可用時不快取）
 #
 # 目的：
 # - 避免每個 API request 都查詢 MongoDB（AdminSession / AdminAccount）
@@ -88,9 +88,11 @@ async def invalidate_admin_auth_cache_by_admin_code(request: Request, admin_code
 
     set_key = _redis_admin_tokens_key(admin_code)
     try:
-        token_hashes: Sequence[bytes] = await redis.smembers(set_key)
-        if token_hashes:
-            keys = [_redis_token_key(th.decode("utf-8")) for th in token_hashes]
+        # smembers returns a set of bytes
+        token_hashes_set: set[bytes] = await redis.smembers(set_key)  # type: ignore[misc]
+        if token_hashes_set:
+            token_hashes_list: list[bytes] = list(token_hashes_set)
+            keys = [_redis_token_key(th.decode("utf-8")) for th in token_hashes_list]
             # Delete token keys in bulk
             await redis.delete(*keys)
         await redis.delete(set_key)
@@ -204,7 +206,7 @@ async def require_admin_account(
     提供給需要「拿到 AdminAccount」的路由使用的依賴。
 
     - 支援 Authorization: Bearer <token>
-    - 若無 header，則回退使用 cookie (ADMIN_TOKEN_COOKIE_NAME)
+    - 無 header 時，回退使用 cookie (ADMIN_TOKEN_COOKIE_NAME)
     """
     token: Optional[str] = None
 

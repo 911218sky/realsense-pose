@@ -145,7 +145,7 @@ async def list_users(
 
     docs: List[UserProfile] = await (
         UserProfile.find_all()
-        .sort(-UserProfile.created_at)
+        .sort([("created_at", -1)])
         .skip(skip)
         .limit(page_size)
         .to_list()
@@ -209,7 +209,7 @@ async def get_cohort_stats() -> CohortStatsResponse:
 @router.get("/search", response_model=UserSearchSuggestionResponse)
 async def search_user_names(
     keyword: Optional[str] = Query(None, max_length=128, description="姓名關鍵字（前綴匹配）"),
-    cohort: Optional[List[str]] = Query(None, description="族群篩選列表（例如：['中風', '高齡']），會篩選同時屬於所有指定族群的使用者"),
+    cohort: Optional[List[str]] = Query(None, description="族群篩選列表，會篩選同時屬於所有指定族群的使用者"),
     page: int = Query(1, ge=1, description="頁碼（從 1 開始）"),
     page_size: int = Query(20, ge=1, le=200, description="每頁筆數"),
 ) -> UserSearchSuggestionResponse:
@@ -256,7 +256,7 @@ async def search_user_names(
     total_pages = int(math.ceil(total / page_size)) if total else 0
 
     docs: List[UserProfile] = await (
-        query.sort(-UserProfile.created_at).skip(skip).limit(page_size).to_list()
+        query.sort([("created_at", -1)]).skip(skip).limit(page_size).to_list()
     )
 
     return UserSearchSuggestionResponse(
@@ -289,7 +289,7 @@ async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagRespon
             RealsensePoseExtractor.bag_filename == payload.bag_filename,
             RealsensePoseExtractor.user_code != None,
         )
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .first_or_none()
     )
 
@@ -328,7 +328,7 @@ async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagRespon
         RealsensePoseExtractor.find(
             RealsensePoseExtractor.user_code == user_code,
         )
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .to_list()
     )
     
@@ -350,7 +350,7 @@ async def get_user_detail(user_code: str) -> UserDetailResponse:
     # 依使用者的 user_code 查出所有 session（由新到舊）
     sessions = await (
         RealsensePoseExtractor.find(RealsensePoseExtractor.user_code == user_code)
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .to_list()
     )
 

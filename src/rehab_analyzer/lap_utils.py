@@ -113,8 +113,8 @@ def seg_path_len(P: np.ndarray, start_idx: int, end_idx: int) -> float:
     ValueError
         如果 P 不是 2D 陣列
     """
-    P = np.asarray(P, dtype=float)
-    if P.ndim != 2:
+    p = np.asarray(P, dtype=float)
+    if p.ndim != 2:
         raise ValueError(f"P 必須是 2D 陣列，取得 ndim={P.ndim}")
     
     start_idx = max(0, int(start_idx))

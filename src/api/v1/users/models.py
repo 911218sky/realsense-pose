@@ -32,16 +32,16 @@ class UserCreateRequest(BaseModel):
     # 教育程度（自由字串）
     education_level: Optional[str] = Field(None, max_length=128)
 
-    # 族群分類列表（預設為 ["正常人"]）
-    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表（例如：['正常人'], ['中風', '高齡'] 等），若不填則預設為 ['正常人']")
+    # 族群分類列表，預設為 ["正常人"]
+    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表，預設為 ['正常人']")
 
-    # 診斷資訊（精簡版）
+    # 診斷資訊
     diagnosis: Optional[DiagnosisInfo] = None
-    # 醫療史/用藥/復健治療等（精簡版）
+    # 醫療史/用藥/復健治療
     medical_history: Optional[MedicalHistoryInfo] = None
-    # 目前症狀/疼痛/跌倒等（精簡版）
+    # 目前症狀/疼痛/跌倒
     symptoms: Optional[SymptomInfo] = None
-    # 生活習慣（抽菸/喝酒/運動等）（精簡版）
+    # 生活習慣（抽菸/喝酒/運動）
     lifestyle: Optional[LifestyleInfo] = None
 
     # 其它備註（自由文字）
@@ -73,9 +73,9 @@ class UserUpdateRequest(BaseModel):
     education_level: Optional[str] = Field(None, max_length=128)
 
     # 族群分類列表
-    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表（例如：['正常人'], ['中風', '高齡'] 等）")
+    cohort: Optional[List[str]] = Field(None, max_length=20, description="族群分類列表")
 
-    # 診斷資訊（若只想更新其中某些欄位，API 端會做 merge，不會整坨覆蓋）
+    # 診斷資訊（API 會 merge 更新，不會整個覆蓋）
     diagnosis: Optional[DiagnosisInfo] = None
     # 醫療史（merge 更新）
     medical_history: Optional[MedicalHistoryInfo] = None
@@ -133,21 +133,21 @@ class UserItem(BaseModel):
 
 
 class UserSessionItem(BaseModel):
-    """某個使用者關聯到的 session(bag) 紀錄（精簡欄位）。"""
+    """某個使用者關聯到的 session(bag) 紀錄。"""
 
-    # session 名稱（目前系統的唯一識別/顯示名稱）
+    # session 名稱（系統的唯一識別/顯示名稱）
     session_name: str
     # 此 session 對應的 user_code（可能為 None 表示尚未綁定）
     user_code: Optional[str] = None
-    # 產出的 npy 檔路徑（字串）
+    # 產出的 npy 檔路徑
     npy_path: str
-    # bag 檔路徑（字串）
+    # bag 檔路徑
     bag_path: str
-    # bag 檔案名稱（例如：1_1_607.bag）
+    # bag 檔案名稱
     bag_filename: str
-    # bag 內容 hash（用於去重/比對）
+    # bag 內容 hash
     bag_hash: Optional[str] = None
-    # 影片檔路徑（可選，若有產出影片）
+    # 影片檔路徑（可選）
     video_path: Optional[str] = None
     # 建立時間
     created_at: datetime
@@ -157,8 +157,8 @@ class UserSessionItem(BaseModel):
 class DeleteUsersRequest(BaseModel):
     """批量刪除使用者的請求 body：POST /v1/users/delete"""
 
-    user_codes: List[str] = Field(..., min_length=1, max_length=100, description="要刪除的 user_code 列表（最多 100 個）")
-    delete_sessions: bool = Field(False, description="若為 True，連同該使用者綁定的 sessions(DB 紀錄) 一併刪除；否則只解除綁定（保留 sessions）")
+    user_codes: List[str] = Field(..., min_length=1, max_length=100, description="要刪除的 user_code 列表，最多 100 個")
+    delete_sessions: bool = Field(False, description="若為 True，連同該使用者綁定的 sessions 一併刪除；否則只解除綁定")
 
 
 class DeleteUserResult(BaseModel):
@@ -193,22 +193,22 @@ class UserDetailResponse(BaseModel):
 
 
 class UserListItem(BaseModel):
-    """使用者列表的單筆資料（比 UserItem 更精簡，適合列表/表格）。"""
+    """使用者列表的單筆資料，比 UserItem 更精簡，適合列表/表格。"""
 
-    # 個案識別碼（用來後續取得詳細資料 / 綁定 session）
+    # 個案識別碼，用來後續取得詳細資料或綁定 session
     user_code: str
     # 顯示用姓名
     name: str
     # 族群分類列表
     cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表")
-    # 建立時間（DB 寫入）
+    # 建立時間
     created_at: datetime
-    # 更新時間（DB 寫入）
+    # 更新時間
     updated_at: datetime
 
 
 class UserListResponse(BaseModel):
-    """使用者列表回傳：GET /v1/users（支援簡單分頁）。"""
+    """使用者列表回傳：GET /v1/users，支援簡單分頁。"""
 
     total: int
     page: int
@@ -217,20 +217,20 @@ class UserListResponse(BaseModel):
     items: List[UserListItem]
 
 class UserSearchSuggestionItem(BaseModel):
-    """使用者搜尋建議（精簡資訊）。"""
+    """使用者搜尋建議。"""
 
-    # 個案識別碼（常用來做後續查詢/綁定；看起來像「hash/uuid」）
+    # 個案識別碼，用來做後續查詢/綁定
     user_code: str
     # 顯示用姓名
     name: str
     # 族群分類列表
     cohort: List[str] = Field(default_factory=lambda: ["正常人"], description="族群分類列表")
-    # 建立時間（用來在同名時做辨識/排序）
+    # 建立時間，用來在同名時做辨識/排序
     created_at: datetime
 
 
 class UserSearchSuggestionResponse(BaseModel):
-    """使用者搜尋建議回傳：GET /v1/users/search（支援分頁、精簡 user 資訊）。"""
+    """使用者搜尋建議回傳：GET /v1/users/search，支援分頁。"""
 
     total: int
     page: int
@@ -240,11 +240,9 @@ class UserSearchSuggestionResponse(BaseModel):
 
 
 class LinkSessionRequest(BaseModel):
-    """把「某個 session(bag)」綁到使用者的請求 body：POST /v1/users/{user_code}/sessions/link
+    """把某個 session(bag) 綁到使用者的請求 body：POST /v1/users/{user_code}/sessions/link
 
-    你可以用：
-    - session_name 來指定要綁哪一筆 session
-    - 或 bag_filename 來指定（推薦，最直覺）
+    可以用 session_name 或 bag_filename 來指定要綁哪一筆 session，推薦使用 bag_filename。
     """
 
     # 以 session_name 指定要綁定的 session
@@ -263,15 +261,13 @@ class LinkSessionRequest(BaseModel):
 class UnlinkSessionRequest(BaseModel):
     """把 session(bag) 從使用者解除綁定的請求 body：POST /v1/users/{user_code}/sessions/unlink
 
-    你可以用：
-    - session_names 來指定要解除的 session_name 列表（支援單一或多個，最多 100 個）
-    - 或 bag_filenames 來指定要解除的 bag_filename 列表（推薦，支援單一或多個，最多 100 個）
-    - 或 unlink_all=true 一次解除該使用者所有 sessions（此時不可同時帶其他參數）
+    可以用 session_names 或 bag_filenames 來指定要解除的列表（推薦使用 bag_filenames），
+    或設定 unlink_all=true 一次解除該使用者所有 sessions。
     """
 
-    unlink_all: bool = Field(False, description="若為 True，一次解除該使用者所有 sessions(bag) 綁定")
-    session_names: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 session_name 列表（最多 100 個）")
-    bag_filenames: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 bag_filename 列表（最多 100 個，推薦）")
+    unlink_all: bool = Field(False, description="若為 True，一次解除該使用者所有 sessions 綁定")
+    session_names: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 session_name 列表，最多 100 個")
+    bag_filenames: Optional[List[str]] = Field(None, min_length=1, max_length=100, description="要解除的 bag_filename 列表，最多 100 個，推薦使用")
 
     @model_validator(mode="after")
     def _ensure_target(self) -> "UnlinkSessionRequest":
@@ -292,7 +288,7 @@ class UnlinkSessionRequest(BaseModel):
 class UnlinkSessionResponse(BaseModel):
     """解除使用者與 session(bag) 的綁定回傳：POST /v1/users/{user_code}/sessions/unlink
 
-    - mode=batch：批量解除（包含單一或多個），會帶 unlinked_sessions 數量和 failed 列表
+    - mode=batch：批量解除，會帶 unlinked_sessions 數量和 failed 列表
     - mode=all：解除全部，會帶 unlinked_sessions 數量
     """
 
@@ -312,9 +308,9 @@ class FindUserByBagResponse(BaseModel):
     """透過 BAG 檔案尋找使用者的回傳：POST /v1/users/find-by-bag"""
 
     found: bool = Field(..., description="是否找到使用者")
-    user: Optional[UserItem] = Field(None, description="找到的使用者資料（若有）")
-    sessions: List[UserSessionItem] = Field(default_factory=list, description="該使用者的所有 session 列表（found=True 時）或使用該 BAG 檔案的 session 列表（found=False 時）")
-    total_sessions: int = Field(0, description="該使用者的 session 總數（found=True 時）或使用該 BAG 檔案的 session 總數（found=False 時）")
+    user: Optional[UserItem] = Field(None, description="找到的使用者資料")
+    sessions: List[UserSessionItem] = Field(default_factory=list, description="該使用者的所有 session 列表或使用該 BAG 檔案的 session 列表")
+    total_sessions: int = Field(0, description="該使用者的 session 總數或使用該 BAG 檔案的 session 總數")
 
 
 class CohortStatItem(BaseModel):
@@ -327,7 +323,7 @@ class CohortStatItem(BaseModel):
 class CohortStatsResponse(BaseModel):
     """族群統計回傳：GET /v1/users/cohorts
 
-    - cohorts: 所有不重複的族群列表（含使用者數量）
+    - cohorts: 所有不重複的族群列表及使用者數量
     - total_cohorts: 總共有多少種族群
     """
 
