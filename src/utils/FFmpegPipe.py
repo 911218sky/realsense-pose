@@ -2,18 +2,28 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Optional, Iterable, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
+if TYPE_CHECKING:
+    from PIL import Image as PILImageModule
+
+_has_pil = False
+_Image: Any = None
+_mpimg: Any = None
+
 try:
     from PIL import Image
-    _HAS_PIL = True
+    _has_pil = True
+    _Image = Image
 except Exception:
-    _HAS_PIL = False
-    from matplotlib import image as _mpimg
+    _has_pil = False
+    from matplotlib import image as _mpimg_module
+    _mpimg = _mpimg_module
 
 class FFmpegPipe:
     """
@@ -25,16 +35,16 @@ class FFmpegPipe:
 
     def __init__(
         self,
-        out_path: Union[str, bytes],
+        out_path: str | bytes,
         width: int,
         height: int,
         fps: int = 30,
-        preset: Optional[str] = "ultrafast",
-        crf: Optional[int] = 28,
-        bitrate_kbps: Optional[int] = None,
+        preset: str | None = "ultrafast",
+        crf: int | None = 28,
+        bitrate_kbps: int | None = None,
         pixel_format: str = "rgb24",
         ffmpeg_exe: str = "ffmpeg",
-        extra_args: Optional[Iterable[str]] = None,
+        extra_args: Iterable[str] | None = None,
         loglevel: str = "error",
     ) -> None:
 
@@ -52,13 +62,13 @@ class FFmpegPipe:
         self.bitrate_kbps = bitrate_kbps
         self.pixel_format = pixel_format
         self.ffmpeg_exe = ffmpeg_exe
-        self.proc: Optional[subprocess.Popen] = None
+        self.proc: subprocess.Popen[bytes] | None = None
         self._extra_args = list(extra_args) if extra_args else []
         self._loglevel = loglevel
 
         # fallback 狀態
         self._fallback_mode: bool = False
-        self._temp_dir: Optional[Path] = None
+        self._temp_dir: Path | None = None
         self._frame_index: int = 0
 
         # 準備輸出資料夾
@@ -74,7 +84,7 @@ class FFmpegPipe:
         # 嘗試啟動 ffmpeg（pipe 模式）
         self._start_process()
 
-    def _build_cmd(self) -> list:
+    def _build_cmd(self) -> list[str]:
         # 將 -loglevel / -hide_banner 等 global option 放前面
         cmd = [
             self.ffmpeg_exe,
@@ -104,16 +114,25 @@ class FFmpegPipe:
     def _start_process(self) -> None:
         cmd = self._build_cmd()
         try:
-            popen_kwargs = dict(
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-            )
             # Windows：隱藏視窗、避免一些 handle/console 相關問題
             if os.name == "nt":
-                popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-            self.proc = subprocess.Popen(cmd, **popen_kwargs)
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    bufsize=0,
+                    creationflags=creationflags,
+                )
+            else:
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    bufsize=0,
+                )
             self._fallback_mode = False
         except OSError as e:
             # pipe 模式失敗 → 啟用 fallback（寫 PNG 再合成速度較慢）
@@ -127,17 +146,21 @@ class FFmpegPipe:
             self._temp_dir = Path(tempfile.mkdtemp(prefix="ffmpeg_pipe_"))
         self._frame_index = 0
 
-    def _save_frame_to_disk(self, rgb: np.ndarray) -> None:
+    def _save_frame_to_disk(self, rgb: np.ndarray[Any, Any]) -> None:
         assert self._temp_dir is not None, "temp dir must be initialized in fallback mode"
         fname = self._temp_dir / f"frame_{self._frame_index:08d}.png"
-        if _HAS_PIL:
-            Image.fromarray(rgb, mode="RGB").save(str(fname), format="PNG")
-        else:
+        if _has_pil and _Image is not None:
+            _Image.fromarray(rgb, mode="RGB").save(str(fname), format="PNG")
+        elif _mpimg is not None:
             _mpimg.imsave(str(fname), rgb)
         self._frame_index += 1
 
     @staticmethod
-    def _to_uint8_rgb(arr: np.ndarray, expect_h: int, expect_w: int) -> np.ndarray:
+    def _to_uint8_rgb(
+        arr: np.ndarray[Any, np.dtype[np.generic]], 
+        expect_h: int, 
+        expect_w: int
+    ) -> np.ndarray[Any, Any]:
         if arr.ndim != 3 or arr.shape[2] != 3:
             raise ValueError("rgb array must have shape (H, W, 3).")
         h, w, _ = arr.shape
@@ -147,13 +170,14 @@ class FFmpegPipe:
             return np.ascontiguousarray(arr)
         # 寬容地把其它 dtypes 轉為 uint8（float/整數等）
         if np.issubdtype(arr.dtype, np.floating):
-            arr = np.clip(arr, 0.0, 1.0) if arr.max() <= 1.0 else np.clip(arr, 0.0, 255.0) / 255.0
-            arr = (arr * 255.0 + 0.5).astype(np.uint8)
+            arr_float = arr.astype(np.float64)
+            arr_float = np.clip(arr_float, 0.0, 1.0) if arr_float.max() <= 1.0 else np.clip(arr_float, 0.0, 255.0) / 255.0
+            arr_uint8 = (arr_float * 255.0 + 0.5).astype(np.uint8)
         else:
-            arr = np.clip(arr, 0, 255).astype(np.uint8)
-        return np.ascontiguousarray(arr)
+            arr_uint8 = np.clip(arr, 0, 255).astype(np.uint8)
+        return np.ascontiguousarray(arr_uint8)
 
-    def write_frame_rgb_array(self, rgb: np.ndarray) -> None:
+    def write_frame_rgb_array(self, rgb: np.ndarray[Any, np.dtype[np.generic]]) -> None:
         rgb = self._to_uint8_rgb(rgb, self.H, self.W)
 
         if self._fallback_mode:
@@ -170,7 +194,7 @@ class FFmpegPipe:
             return
 
         try:
-            self.proc.stdin.write(rgb.tobytes())
+            _ = self.proc.stdin.write(rgb.tobytes())
         except (BrokenPipeError, OSError) as e:
             # 中途斷線 → 切換 fallback，後續幀會繼續寫入 PNG
             print("FFmpegPipe: stdin write failed; switching to fallback. Error:", e)
@@ -200,7 +224,9 @@ class FFmpegPipe:
                 rgb = rgb.astype(np.uint8)
         self.write_frame_rgb_array(rgb)
 
-    def _ffmpeg_fallback_cmd(self) -> list:
+    def _ffmpeg_fallback_cmd(self) -> list[str]:
+        if self._temp_dir is None:
+            raise ValueError("temp_dir must be set in fallback mode")
         pattern = str(self._temp_dir / "frame_%08d.png")
         cmd = [
             self.ffmpeg_exe,
@@ -223,7 +249,7 @@ class FFmpegPipe:
         cmd += [self.out_path]
         return cmd
 
-    def close(self, check_returncode: bool = True) -> Optional[int]:
+    def close(self, check_returncode: bool = True) -> int | None:
         """
         回傳：
           - pipe 模式：ffmpeg returncode（通常 0）。
@@ -239,7 +265,7 @@ class FFmpegPipe:
                     # 沒有任何幀 → 清理後返回 None
                     return None
                 cmd = self._ffmpeg_fallback_cmd()
-                subprocess.run(cmd, check=True)
+                _ = subprocess.run(cmd, check=True)
                 rc = 0
             except subprocess.CalledProcessError as e:
                 print("FFmpegPipe: fallback ffmpeg failed:", e)
@@ -273,8 +299,8 @@ class FFmpegPipe:
     def __enter__(self) -> "FFmpegPipe":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         try:
-            self.close(check_returncode=(exc_type is None))
+            _ = self.close(check_returncode=(exc_type is None))
         except Exception:
             pass

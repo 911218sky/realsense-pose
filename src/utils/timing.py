@@ -1,4 +1,7 @@
 import time
+from collections.abc import Callable
+from typing import Any
+
 from logger import setup_logger
 
 __all__ = ["time_it"]
@@ -16,7 +19,7 @@ def format(ns: int) -> str:
     ms = ns / 1_000_000.0
     return f"{ms:0.3f} ms"
 
-def time_it(func, time_it_label: str = None, *args, **kwargs):
+def time_it(func: Callable[..., Any], time_it_label: str | None = None, *args: Any, **kwargs: Any) -> Any:
     """
     使用 time.perf_counter_ns() 做高解析度（整數奈秒）計時。
     - func: 可呼叫物件

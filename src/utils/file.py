@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional, Union
 
 def ensure_dir(path: str):
     """
@@ -17,7 +16,7 @@ def ensure_dir(path: str):
     return p
 
 def ensure_file(path: str,
-                content: Optional[str] = None,
+                content: str | None = None,
                 overwrite: bool = False,
                 encoding: str = "utf-8") -> Path:
     """
@@ -49,23 +48,23 @@ def ensure_file(path: str,
                 # 覆蓋（若 content 為 None，就清空檔案）
                 with p.open("w", encoding=encoding) as f:
                     if content is not None:
-                        f.write(content)
+                        _ = f.write(content)
             # 若不覆蓋，直接返回現有檔案
         else:
             # 檔案不存在，建立並根據 content 寫入（若 content 為 None 則建立空檔）
             with p.open("w", encoding=encoding) as f:
                 if content is not None:
-                    f.write(content)
+                    _ = f.write(content)
         return p
     except PermissionError as e:
         # 把更清楚的錯誤訊息往上傳
         raise PermissionError(f"Permission denied creating/writing file '{p}': {e}") from e
 
 def add_prefix_to_filename(
-    path_str: Optional[Union[str, Path]] = None,
-    prefix: Optional[str] = None,
+    path_str: str | Path | None = None,
+    prefix: str | None = None,
     mode: str = "preserve_full",
-) -> str:
+) -> str | None:
     """
     加 prefix 到檔名（不改變 extension）。
     If prefix is None or empty -> return original path as Path.
@@ -98,7 +97,7 @@ def add_prefix_to_filename(
     else:
         raise ValueError("mode must be one of: preserve_full, no_dir")
 
-def setup_logger(name: str, log_file: Optional[str] = None, level: int = logging.INFO) -> logging.Logger:
+def setup_logger(name: str, log_file: str | None = None, level: int = logging.INFO) -> logging.Logger:
     """建立 logger，輸出到終端機，若有指定 log_file 則同時寫檔。"""
     logger = logging.getLogger(name)
     if logger.handlers:
