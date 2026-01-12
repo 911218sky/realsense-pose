@@ -9,9 +9,7 @@ def to_fraction(x: str | float | int) -> float:
     """
     if isinstance(x, (float, int)):
         return float(x)
-    if not isinstance(x, str):
-        raise TypeError(f"to_fraction 不支援類型: {type(x)} (value={x})")
-
+    # x is str
     xs = x.strip()
     if xs == "":
         raise ValueError("空字串無法轉換為 fraction")

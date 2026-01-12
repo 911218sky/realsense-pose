@@ -4,15 +4,12 @@
 提供共用的輸出目錄、前綴名稱和軸顯示設定。
 """
 from pathlib import Path
-from typing import Dict, TYPE_CHECKING
+from typing import Dict
 
 from matplotlib.axes import Axes
 
 from ..entities import XYZPair
 from ..rehab_analyzer import RehabilitationSessionAnalyzer
-
-if TYPE_CHECKING:
-    import matplotlib.pyplot as plt
 
 # 軸標籤顯示名稱設定（僅作為說明用途；實際標籤由 axis_convention 決定）
 # - standard   : X = 左右（lateral, left+, right-）

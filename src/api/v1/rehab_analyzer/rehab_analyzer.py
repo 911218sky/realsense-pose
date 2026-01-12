@@ -29,7 +29,7 @@ from api.v1.rehab_analyzer.utils import resolve_session_npy_path, select_peak_in
 from config import load_config
 from logger import setup_logger
 from rehab_analyzer.rehab_analyzer import RehabilitationSessionAnalyzer
-from rehab_analyzer.entities import DetectLapsResult
+from rehab_analyzer.entities import DetectLapsResult, OffsetFFTResult, OffsetFFTResult
 
 default_config = load_config(mode="analyzer")
 
@@ -143,24 +143,24 @@ async def per_lap_offset(
         # 取得左右髖點、中心點 C2（同 visualizer）
         fps = float(analyzer._estimate_fps())
         smooth_window = max(1, int(round(config.smooth_window_s * fps)))
-        L2, R2, _ = analyzer._compute_hip_points(
+        l2, r2, _ = analyzer._compute_hip_points(
             projection=config.projection,
             smooth_window=smooth_window,
         )
-        C2 = (L2 + R2) / 2.0
+        c2 = (l2 + r2) / 2.0
 
         # lateral offset 全程序列（raw + smooth）
         chair_pos = np.array(det.chair_pos, dtype=float)
         cone_pos = np.array(det.cone_pos, dtype=float)
         lat_raw_all, lat_smooth_all = analyzer._lateral_offset_series(
-            C2=C2,
+            C2=c2,
             chair_pos=np.array(chair_pos),
             cone_pos=np.array(cone_pos),
             k_smooth=config.k_smooth,
         )
 
         # pelvis heading（解包後角度），整段 theta_all
-        theta_all = analyzer.compute_pelvis_heading_unwrapped(L2=L2, R2=R2)
+        theta_all = analyzer.compute_pelvis_heading_unwrapped(L2=l2, R2=r2)
         t_all = analyzer.t.astype(float)
     except Exception as e:
         raise HTTPException(
@@ -346,12 +346,12 @@ async def speed_heatmap(
         analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
         fps = float(analyzer._estimate_fps())
         smooth_window = max(1, int(round(config.smooth_window_s * fps)))
-        L2, R2, _ = analyzer._compute_hip_points(
+        l2, r2, _ = analyzer._compute_hip_points(
             projection=config.projection,
             smooth_window=smooth_window,
         )
-        C2 = (L2 + R2) / 2.0
-        _, speed, _ = analyzer._speed_series(C2)
+        c2 = (l2 + r2) / 2.0
+        _, speed, _ = analyzer._speed_series(c2)
 
         det = analyzer.detect_laps_auto(
             projection=config.projection,
@@ -711,14 +711,14 @@ async def trajectory_payload(
         fps_in = float(analyzer._estimate_fps())
         smooth_window = max(1, int(round(config.smooth_window_s * fps_in)))
 
-        L2, R2, valid = analyzer._compute_hip_points(
+        l2, r2, valid = analyzer._compute_hip_points(
             projection=config.projection,
             smooth_window=smooth_window,
             left_joint=config.left_joint,
             right_joint=config.right_joint,
         )
-        C2 = (L2 + R2) / 2.0
-        num_frames = int(C2.shape[0])
+        c2 = (l2 + r2) / 2.0
+        num_frames = int(c2.shape[0])
         if not np.any(valid):
             raise ValueError("沒有有效的關節座標。")
 
@@ -736,7 +736,7 @@ async def trajectory_payload(
 
         # bounds：以所有有效點與椅、錐位置決定
         all_points = np.vstack(
-            [L2[valid], R2[valid], chair_pos[None, :], cone_pos[None, :]]
+            [l2[valid], r2[valid], chair_pos[None, :], cone_pos[None, :]]
         )
         xmin, ymin = np.min(all_points, axis=0)
         xmax, ymax = np.max(all_points, axis=0)
@@ -760,8 +760,8 @@ async def trajectory_payload(
                 rotated[..., 1] = 2 * cy - rotated[..., 1]
                 return rotated
 
-            L2 = _rotate_coords(L2)  # pyright: ignore[reportConstantRedefinition]
-            R2 = _rotate_coords(R2)  # pyright: ignore[reportConstantRedefinition]
+            l2 = _rotate_coords(l2)
+            r2 = _rotate_coords(r2)
             chair_pos = _rotate_coords(chair_pos)
             cone_pos = _rotate_coords(cone_pos)
 
@@ -774,8 +774,8 @@ async def trajectory_payload(
         if int(config.frame_jump) > 1:
             idxs_full = idxs_full[:: int(config.frame_jump)]
 
-        L2_sub = L2[idxs_full]
-        R2_sub = R2[idxs_full]
+        l2_sub = l2[idxs_full]
+        r2_sub = r2[idxs_full]
 
         n_frames = int(idxs_full.size)
         idxs_full_i64 = idxs_full.astype(np.int64, copy=False)
@@ -806,12 +806,12 @@ async def trajectory_payload(
             right = int(idxs_full_i64[j])
             return j - 1 if abs(int(frame_idx) - left) <= abs(right - int(frame_idx)) else j
 
-        Lq = _quantize_u16(L2_sub)
-        Rq = _quantize_u16(R2_sub)
+        lq = _quantize_u16(l2_sub)
+        rq = _quantize_u16(r2_sub)
         # 打包成 [xL, yL, xR, yR] * n_frames
         packed_u16 = np.empty((n_frames, 4), dtype=np.uint16)
-        packed_u16[:, 0:2] = Lq
-        packed_u16[:, 2:4] = Rq
+        packed_u16[:, 0:2] = lq
+        packed_u16[:, 2:4] = rq
 
         # 壓縮
         b64 = pack_1d_u16_le_zlib_b64(packed_u16)

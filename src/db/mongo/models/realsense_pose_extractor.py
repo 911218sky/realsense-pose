@@ -4,6 +4,7 @@ from typing import Optional
 
 from beanie import Document
 from pydantic import Field, field_validator
+from pydantic_core import ValidationInfo
 from pymongo import ASCENDING, IndexModel
 
 from ..model_utils import generate_code
@@ -25,7 +26,7 @@ class RealsensePoseExtractor(Document):
 
     @field_validator("bag_filename", mode="before")
     @classmethod
-    def _extract_bag_filename(cls, v: Optional[str], info) -> str:
+    def _extract_bag_filename(cls, v: Optional[str], info: ValidationInfo) -> str:
         """從 bag_path 自動提取 bag_filename（若未提供）。"""
         if v:
             return v

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
-from scipy.ndimage import uniform_filter1d  # type: ignore[import-untyped]
+from scipy.ndimage import uniform_filter1d
 
 __all__ = [
     "CalibrationConfig",

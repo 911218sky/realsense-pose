@@ -145,7 +145,7 @@ async def list_users(
 
     docs: List[UserProfile] = await (
         UserProfile.find_all()
-        .sort(-UserProfile.created_at)
+        .sort([("created_at", -1)])
         .skip(skip)
         .limit(page_size)
         .to_list()
@@ -256,7 +256,7 @@ async def search_user_names(
     total_pages = int(math.ceil(total / page_size)) if total else 0
 
     docs: List[UserProfile] = await (
-        query.sort(-UserProfile.created_at).skip(skip).limit(page_size).to_list()
+        query.sort([("created_at", -1)]).skip(skip).limit(page_size).to_list()
     )
 
     return UserSearchSuggestionResponse(
@@ -289,7 +289,7 @@ async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagRespon
             RealsensePoseExtractor.bag_filename == payload.bag_filename,
             RealsensePoseExtractor.user_code != None,
         )
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .first_or_none()
     )
 
@@ -328,7 +328,7 @@ async def find_user_by_bag(payload: FindUserByBagRequest) -> FindUserByBagRespon
         RealsensePoseExtractor.find(
             RealsensePoseExtractor.user_code == user_code,
         )
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .to_list()
     )
     
@@ -350,7 +350,7 @@ async def get_user_detail(user_code: str) -> UserDetailResponse:
     # 依使用者的 user_code 查出所有 session（由新到舊）
     sessions = await (
         RealsensePoseExtractor.find(RealsensePoseExtractor.user_code == user_code)
-        .sort(-RealsensePoseExtractor.created_at)
+        .sort([("created_at", -1)])
         .to_list()
     )
 

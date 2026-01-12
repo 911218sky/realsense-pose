@@ -45,7 +45,7 @@ logger = setup_logger("api.v1.cohort_benchmark.service")
 class CohortBenchmarkService:
     """族群基準分析服務。"""
 
-    DEFAULT_PERCENTILES = DEFAULT_PERCENTILES
+    DEFAULT_PERCENTILES: List[int] = DEFAULT_PERCENTILES
 
     # 委託給模組函數
     def compute_percentiles(
@@ -274,7 +274,7 @@ class CohortBenchmarkService:
             all_gaits: List[GaitSummary] = []
             session_count = 0
 
-            for user_code, session in sessions:
+            for _user_code, session in sessions:
                 npy_path = self._resolve_npy_path(session)
                 if not npy_path:
                     continue

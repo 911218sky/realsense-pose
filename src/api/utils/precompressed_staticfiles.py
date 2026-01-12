@@ -1,11 +1,11 @@
 import mimetypes
+from os import stat_result as StatResult
 from pathlib import Path
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-
 
 _EXTRA_MIME_TYPES: dict[str, str] = {
     ".wasm": "application/wasm",
@@ -57,10 +57,8 @@ def _append_vary(existing: str | None, token: str) -> str:
         parts.append(token)
     return ", ".join(parts)
 
-
-def _weak_etag_from_stat(stat_result, encoding: str) -> str:
+def _weak_etag_from_stat(stat_result: StatResult, encoding: str) -> str:
     # 以檔案大小 + mtime 生成 weak etag；並把 encoding 納入，避免 br/gzip 互相誤命中。
-    # 注意：這是 cache validator，不是 security token。
     mtime_ns = getattr(stat_result, "st_mtime_ns", None)
     if mtime_ns is None:
         mtime_ns = int(stat_result.st_mtime * 1_000_000_000)

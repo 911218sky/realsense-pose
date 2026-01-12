@@ -306,10 +306,10 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         if isinstance(spec, (list, tuple, np.ndarray)):
             if not spec:
                 raise ValueError("joint group 不能是空的。")
-            idxs = [self.resolve_joint(s) for s in spec]  # type: ignore[arg-type]
+            idxs = [self.resolve_joint(s) for s in spec]
             arr_group = self.arr[:, idxs, component_idx]
             return np.mean(arr_group, axis=1)
-        idx = self.resolve_joint(spec)  # type: ignore[arg-type]
+        idx = self.resolve_joint(spec)
         return self.arr[:, idx, component_idx]
 
     @staticmethod

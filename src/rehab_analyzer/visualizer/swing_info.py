@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import Any
 
+from matplotlib.axes import Axes
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -100,6 +101,8 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         ax.set_title(f"{self.prefix} - Swing percentage (per minute)")
 
         filename = add_prefix_to_filename(save_name or "swing_info_heatmap.png", self.prefix)
+        if filename is None:
+            filename = "swing_info_heatmap.png"
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
@@ -207,7 +210,10 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         ax2.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False, ncol=1, title="Side")
 
         filename = save_name or "minutely_stance_swing_bars.png"
-        save_path = self.out_dir / add_prefix_to_filename(filename, self.prefix)
+        prefixed_filename = add_prefix_to_filename(filename, self.prefix)
+        if prefixed_filename is None:
+            prefixed_filename = filename
+        save_path = self.out_dir / prefixed_filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
         plt.close(fig)
@@ -216,8 +222,8 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _annotate_stance_swing_bars(
-        axis: plt.Axes,
-        bar_container,
+        axis: Axes,
+        bar_container: Any,
         values: np.ndarray[Any, Any],
     ) -> None:
         """在柱頂顯示秒數。"""

@@ -104,6 +104,8 @@ class SpeedHeatmapMixin(VisualizerUtilsMixin):
         fig.tight_layout(pad=0.3)
 
         filename = add_prefix_to_filename(save_name or "speed_heatmap.png", self.prefix)
+        if filename is None:
+            filename = "speed_heatmap.png"
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))

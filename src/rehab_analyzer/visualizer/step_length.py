@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import Any, Callable
 
+from matplotlib.axes import Axes
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -107,6 +108,8 @@ class StepLengthBarsMixin(VisualizerUtilsMixin):
         fig.suptitle(f"{self.prefix} - Per-minute cadence & step length", y=0.995)
 
         filename = add_prefix_to_filename(save_name or "minutely_cadence_step_length_bars.png", self.prefix)
+        if filename is None:
+            filename = "minutely_cadence_step_length_bars.png"
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
@@ -116,8 +119,8 @@ class StepLengthBarsMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _annotate_bars(
-        axis: plt.Axes,
-        bar_container,
+        axis: Axes,
+        bar_container: Any,
         values: np.ndarray[Any, Any],
         fmt: Callable[[float], str],
     ) -> None:

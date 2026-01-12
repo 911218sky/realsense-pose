@@ -39,31 +39,31 @@ class LapDetector(PoseProcessor):
 
     def _infer_anchors(
         self,
-        C2: np.ndarray,
+        c2: np.ndarray,
         valid: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, float]:
         """利用主軸兩端作為兩個 anchor 點（不預先指定椅子/錐子）。"""
-        P = C2[valid]
+        p = c2[valid]
 
-        if len(P) < 10:
-            pmin = np.min(P, axis=0)
-            pmax = np.max(P, axis=0)
+        if len(p) < 10:
+            pmin = np.min(p, axis=0)
+            pmax = np.max(p, axis=0)
             return pmin, pmax, float(np.linalg.norm(pmax - pmin))
 
-        P0 = P - np.mean(P, axis=0, keepdims=True)
-        _, _, Vt = np.linalg.svd(P0, full_matrices=False)
+        p0 = p - np.mean(p, axis=0, keepdims=True)
+        _, _, Vt = np.linalg.svd(p0, full_matrices=False)
         axis = Vt[0]
 
-        s = P0 @ axis
+        s = p0 @ axis
         s_min, s_max = np.percentile(s, [5, 95])
-        a = np.mean(P[s <= s_min + 1e-6], axis=0)
-        b = np.mean(P[s >= s_max - 1e-6], axis=0)
+        a = np.mean(p[s <= s_min + 1e-6], axis=0)
+        b = np.mean(p[s >= s_max - 1e-6], axis=0)
         D = float(np.linalg.norm(b - a))
         return a, b, D
 
     def _auto_zones(
         self,
-        C2: np.ndarray,
+        c2: np.ndarray,
         pos_a: np.ndarray,
         pos_b: np.ndarray,
         y: np.ndarray,
@@ -78,8 +78,8 @@ class LapDetector(PoseProcessor):
         ker = np.ones(k) / k
         yprime = np.convolve(self._compute_yprime(y), ker, mode="same")
 
-        dA = np.linalg.norm(C2 - pos_a, axis=1)
-        dB = np.linalg.norm(C2 - pos_b, axis=1)
+        dA = np.linalg.norm(c2 - pos_a, axis=1)
+        dB = np.linalg.norm(c2 - pos_b, axis=1)
 
         # 坐下時段：用 y' >= sit_pos_thr 當作坐下
         sit_mask = yprime >= sit_pos_thr
@@ -128,14 +128,14 @@ class LapDetector(PoseProcessor):
         return chair_pos, cone_pos, (rC_enter, rC_exit), (rK_enter, rK_exit)
 
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_speed_series"))
-    def _speed_series(self, C2: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _speed_series(self, c2: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """根據 2D 中點軌跡計算速度與逐幀位移。"""
-        C2 = np.asarray(C2, dtype=float)  # pyright: ignore[reportConstantRedefinition]
+        c2_arr = np.asarray(c2, dtype=float)
         fps = self._estimate_fps()
         t = self.t
 
         # 逐幀位移長度
-        dC = np.linalg.norm(np.diff(C2, axis=0, prepend=C2[[0], :]), axis=1)
+        dC = np.linalg.norm(np.diff(c2_arr, axis=0, prepend=c2_arr[[0], :]), axis=1)
 
         dt = np.diff(t, prepend=t[0])
         pos_dt = dt[np.isfinite(dt) & (dt > 0)]
@@ -173,7 +173,7 @@ class LapDetector(PoseProcessor):
     )
     def _lateral_offset_series(
         self,
-        C2: np.ndarray,
+        c2: np.ndarray,
         chair_pos: np.ndarray,
         cone_pos: np.ndarray,
         k_smooth: int = 1,
@@ -183,11 +183,11 @@ class LapDetector(PoseProcessor):
         norm = float(np.linalg.norm(vec))
 
         if norm <= 1e-6:
-            lat = C2[:, 0].astype(float)
+            lat = c2[:, 0].astype(float)
         else:
             ex = vec / norm
             ey = np.array([-ex[1], ex[0]], dtype=float)
-            rel = C2 - chair_pos[None, :]
+            rel = c2 - chair_pos[None, :]
             lat = rel @ ey
 
         k = max(1, int(k_smooth))
@@ -261,24 +261,24 @@ class LapDetector(PoseProcessor):
         ydiff_window = max(1, int(round(ydiff_window_s * fps)))
         min_width_frames = max(1, int(round(min_turn_width_s * fps)))
 
-        L2, R2, valid = self._compute_hip_points(
+        l2, r2, valid = self._compute_hip_points(
             projection=projection,
             smooth_window=smooth_window,
         )
-        C2 = (L2 + R2) / 2.0
-        N = len(C2)
+        c2 = (l2 + r2) / 2.0
+        N = len(c2)
         group_gap_frames = max(1, int(round(group_gap_s * fps)))
 
         # 利用同一投影的髖點計算解包後骨盆朝向
-        theta = self.compute_pelvis_heading_unwrapped(L2=L2, R2=R2)
+        theta = self.compute_pelvis_heading_unwrapped(L2=l2, R2=r2)
 
-        pos_a, pos_b, D = self._infer_anchors(C2, valid)
+        pos_a, pos_b, D = self._infer_anchors(c2, valid)
 
         xyz = self.arr[:, :33, :]
         y = (xyz[:, self.L_HIP, 1] + xyz[:, self.R_HIP, 1]) / 2.0
 
         chair_pos, cone_pos, (rC_in, rC_out), (rK_in, rK_out) = self._auto_zones(
-            C2,
+            c2,
             pos_a,
             pos_b,
             y,
@@ -289,8 +289,8 @@ class LapDetector(PoseProcessor):
             rK=rK,
         )
 
-        dist_chair = np.linalg.norm(C2 - chair_pos, axis=1)
-        dist_cone = np.linalg.norm(C2 - cone_pos, axis=1)
+        dist_chair = np.linalg.norm(c2 - chair_pos, axis=1)
+        dist_cone = np.linalg.norm(c2 - cone_pos, axis=1)
         near_chair = hysteresis_mask(dist_chair, rC_in, rC_out)
         near_cone = hysteresis_mask(dist_cone, rK_in, rK_out)
 
@@ -493,24 +493,24 @@ class LapDetector(PoseProcessor):
             dur_total = max(0.0, ts_end - ts_start)
 
             if ts_end > ts_start and dur_sit > 0.0:
-                pt_cone_turn_start = C2[turn_cone_start_idx]
-                pt_cone_turn_end = C2[turn_cone_end_idx]
+                pt_cone_turn_start = c2[turn_cone_start_idx]
+                pt_cone_turn_end = c2[turn_cone_end_idx]
                 dist_cone_turn_chord_m = float(
                     np.linalg.norm(pt_cone_turn_end - pt_cone_turn_start)
                 )
                 dist_cone_turn_path_m = seg_path_len(
-                    C2,
+                    c2,
                     turn_cone_start_idx,
                     turn_cone_end_idx,
                 )
-                dist_outbound_m = seg_path_len(C2, ls, turn_cone_start_idx)
+                dist_outbound_m = seg_path_len(c2, ls, turn_cone_start_idx)
                 dist_return_m = seg_path_len(
-                    C2,
+                    c2,
                     turn_cone_end_idx,
                     turn_chair_start_idx,
                 )
                 dist_turn_to_sit_m = seg_path_len(
-                    C2,
+                    c2,
                     turn_chair_start_idx,
                     turn_chair_end_idx,
                 )
@@ -575,7 +575,3 @@ class LapDetector(PoseProcessor):
             r_cone_exit=float(rK_out),
             fps=float(fps),
         )
-
-
-# 步態分析
-

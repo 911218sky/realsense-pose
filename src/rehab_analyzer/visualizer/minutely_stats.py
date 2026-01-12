@@ -8,6 +8,8 @@ from typing import Any, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 from utils import add_prefix_to_filename
 from ..constants import (
@@ -44,7 +46,7 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         bar_width: float = 0.22,
         group_gap: float = 0.06,
         save_name: str | None = None,
-        ylim: tuple[float, float | None] = None,
+        ylim: tuple[float, float | None] | None = None,
     ) -> Path:
         """
         以每分鐘為單位繪製：
@@ -118,7 +120,7 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
 
         filename = add_prefix_to_filename(save_name or "minutely_stage_duration_bars.png", self.prefix)
-        save_path = Path(self.out_dir) / filename
+        save_path = Path(self.out_dir) / (filename or "minutely_stage_duration_bars.png")
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
         plt.close(fig)
@@ -151,7 +153,7 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
 
     def _create_minutely_figure(
         self, M: int, figsize_per_minute: float, dpi: int
-    ) -> tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """創建每分鐘統計圖的 Figure。"""
         fig_width = max(7.0, float(M) * float(figsize_per_minute))
         fig_height = 4.2
@@ -159,14 +161,14 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
 
     def _draw_minutely_bars(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         minutes: np.ndarray[Any, Any],
         means_to: np.ndarray[Any, Any],
         means_turn: np.ndarray[Any, Any],
         means_ret: np.ndarray[Any, Any],
         bar_width: float,
         group_gap: float,
-    ) -> Tuple:
+    ) -> tuple[Any, Any, Any]:
         """繪製三組柱狀圖。"""
         color_to = "#F58518"
         color_turn = "#E45756"
@@ -183,10 +185,10 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
 
     def _style_minutely_axes(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         minutes: np.ndarray[Any, Any],
         counts: np.ndarray[Any, Any],
-        ylim: tuple[float, float | None],
+        ylim: tuple[float, float | None] | None,
     ) -> None:
         """設定軸樣式。"""
         ax.grid(True, axis="y", linestyle="--", alpha=0.25)
@@ -198,22 +200,23 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         ax.set_xticks(minutes.astype(float))
         ax.set_xticklabels([f"{m + 1}\n(n={int(n)})" for m, n in zip(minutes, counts)])
 
-        self._apply_limits(ax, ylim=ylim)
+        if ylim is not None:
+            self._apply_limits(ax, ylim=ylim)
 
     def _annotate_minutely_bars(
         self,
-        ax: plt.Axes,
-        bars_to,
-        bars_turn,
-        bars_ret,
+        ax: Axes,
+        bars_to: Any,
+        bars_turn: Any,
+        bars_ret: Any,
         means_to: np.ndarray[Any, Any],
         means_turn: np.ndarray[Any, Any],
         means_ret: np.ndarray[Any, Any],
     ) -> None:
         """在柱子上方標示數值。"""
         def annotate_bars(
-            axis: plt.Axes,
-            bar_container,
+            axis: Axes,
+            bar_container: Any,
             values: np.ndarray[Any, Any],
             fmt: Callable[[float], str],
         ) -> None:

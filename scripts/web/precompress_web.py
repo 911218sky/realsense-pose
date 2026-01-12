@@ -78,7 +78,7 @@ def _is_up_to_date(src: Path, dst: Path) -> bool:
 
 def main() -> int:
     try:
-        import brotli  # type: ignore
+        import brotli
     except ModuleNotFoundError as e:
         raise SystemExit(
             "Missing dependency 'brotli'. Install it with: pip install brotli\n"

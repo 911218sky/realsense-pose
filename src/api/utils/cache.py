@@ -95,7 +95,7 @@ def redis_cache(
             if not USE_REDIS_CACHE:
                 return await func(*args, **kwargs)
 
-            request: Request = kwargs.get("request")
+            request: Request | None = kwargs.get("request")
             if request is None:
                 # 沒有 request 無法拿到 redis，直接執行原函式
                 return await func(*args, **kwargs)

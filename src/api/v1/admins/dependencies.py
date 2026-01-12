@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Optional, Sequence, Tuple
+from typing import Optional,  Tuple
 
 from redis import asyncio as aioredis
 
@@ -88,9 +88,11 @@ async def invalidate_admin_auth_cache_by_admin_code(request: Request, admin_code
 
     set_key = _redis_admin_tokens_key(admin_code)
     try:
-        token_hashes: Sequence[bytes] = await redis.smembers(set_key)
-        if token_hashes:
-            keys = [_redis_token_key(th.decode("utf-8")) for th in token_hashes]
+        # smembers returns a set of bytes
+        token_hashes_set: set[bytes] = await redis.smembers(set_key)  # type: ignore[misc]
+        if token_hashes_set:
+            token_hashes_list: list[bytes] = list(token_hashes_set)
+            keys = [_redis_token_key(th.decode("utf-8")) for th in token_hashes_list]
             # Delete token keys in bulk
             await redis.delete(*keys)
         await redis.delete(set_key)

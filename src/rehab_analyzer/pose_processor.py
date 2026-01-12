@@ -204,17 +204,15 @@ class PoseProcessor(DataLoader):
         if isinstance(sel, int):
             return int(sel)
 
-        if isinstance(sel, str):
-            if hasattr(self, sel):
-                return int(getattr(self, sel))
-            try:
-                return int(sel)
-            except (ValueError, TypeError):
-                raise ValueError(
-                    f"未知的關節選擇 '{sel}'（不是整數，也不是類別常數名）"
-                )
-
-        raise TypeError("joint 必須為 int 或 str")
+        # sel is str
+        if hasattr(self, sel):
+            return int(getattr(self, sel))
+        try:
+            return int(sel)
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"未知的關節選擇 '{sel}'（不是整數，也不是類別常數名）"
+            )
 
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_compute_hip_points"))
     def _compute_hip_points(
@@ -243,20 +241,20 @@ class PoseProcessor(DataLoader):
 
         proj = projection.lower()
         if proj == "xz":
-            L2 = Lh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
-            R2 = Rh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
+            l2 = Lh[:, [0, 2]]
+            r2 = Rh[:, [0, 2]]
         elif proj == "xy":
-            L2 = Lh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
-            R2 = Rh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
+            l2 = Lh[:, [0, 1]]
+            r2 = Rh[:, [0, 1]]
         else:
             raise ValueError("projection 僅支援 'xz' 或 'xy'")
 
-        L2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
-        R2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
+        l2[~valid] = 0.0
+        r2[~valid] = 0.0
 
-        L2 = self._moving_average(L2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
-        R2 = self._moving_average(R2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
-        return L2, R2, valid
+        l2 = self._moving_average(l2, smooth_window)
+        r2 = self._moving_average(r2, smooth_window)
+        return l2, r2, valid
 
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_hip_separation_series"))
     def _hip_separation_series(
@@ -275,21 +273,21 @@ class PoseProcessor(DataLoader):
 
         proj = projection.lower()
         if proj == "xy":
-            L2 = Lh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
-            R2 = Rh[:, [0, 1]]  # pyright: ignore[reportConstantRedefinition]
+            l2 = Lh[:, [0, 1]]
+            r2 = Rh[:, [0, 1]]
         elif proj == "xz":
-            L2 = Lh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
-            R2 = Rh[:, [0, 2]]  # pyright: ignore[reportConstantRedefinition]
+            l2 = Lh[:, [0, 2]]
+            r2 = Rh[:, [0, 2]]
         else:
             raise ValueError("projection 僅支援 'xy' 或 'xz'")
 
-        L2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
-        R2[~valid] = 0.0  # pyright: ignore[reportConstantRedefinition]
+        l2[~valid] = 0.0
+        r2[~valid] = 0.0
 
-        L2 = self._moving_average(L2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
-        R2 = self._moving_average(R2, smooth_window)  # pyright: ignore[reportConstantRedefinition]
+        l2 = self._moving_average(l2, smooth_window)
+        r2 = self._moving_average(r2, smooth_window)
 
-        d = np.linalg.norm(L2 - R2, axis=1)
+        d = np.linalg.norm(l2 - r2, axis=1)
         return d, valid
 
     def _compute_yprime(self, y: np.ndarray) -> np.ndarray:
@@ -366,9 +364,11 @@ class PoseProcessor(DataLoader):
             若提供，當 |R-L| 小於此值時沿用上一幀角度（避免噪聲導致亂跳）。
         """
         if L2 is None or R2 is None:
-            L2, R2, _ = self._compute_hip_points(projection="xz")  # pyright: ignore[reportConstantRedefinition]
+            l2, r2, _ = self._compute_hip_points(projection="xz")
         else:
             assert L2.shape == R2.shape and L2.shape[1] == 2, "L2/R2 需為 (N,2)"
+            l2 = L2
+            r2 = R2
         
         def wrap_to_180(deg: np.ndarray) -> np.ndarray:
             """包到 [-180, 180)（度）。"""
@@ -389,7 +389,7 @@ class PoseProcessor(DataLoader):
             for i in range(1, len(x)):
                 # 跳過無效幀或無窮大值
                 prev = out[i-1]
-                if not valid_mask[i]:
+                if valid_mask is not None and not valid_mask[i]:
                     out[i] = prev
                     continue
 
@@ -412,8 +412,8 @@ class PoseProcessor(DataLoader):
             return out
 
         t = self.t
-        dx = (R2[:, 0] - L2[:, 0]).astype(float)
-        dz = (R2[:, 1] - L2[:, 1]).astype(float)
+        dx = (r2[:, 0] - l2[:, 0]).astype(float)
+        dz = (r2[:, 1] - l2[:, 1]).astype(float)
         # 包到 [-180, 180)
         theta_wrapped = wrap_to_180(np.degrees(np.arctan2(dz, dx)))
 

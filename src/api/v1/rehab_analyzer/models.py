@@ -7,7 +7,6 @@ from rehab_analyzer.constants import (
    DEFAULT_MIN_V_ABS,
    DEFAULT_FLAT_FRAC,
    DEFAULT_K_SMOOTH,
-   DEFAULT_FFT_BAND,
 )
 
 class AnalyzerBaseParams(BaseModel):

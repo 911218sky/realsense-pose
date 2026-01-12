@@ -15,12 +15,17 @@ if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
 
+from typing import Any
+
+import multiprocessing as mp
+
+
 def _worker(
     bag_file_path: str,
     output_npy_path: str,
     result_queue: mp.Queue,
-    **process_bag_kwargs,
-):
+    **process_bag_kwargs: Any,
+) -> None:
     """子進程 worker，執行完畢後透過 queue 回傳結果。"""
     try:
         # import 放在子進程內，避免與父進程共享狀態
@@ -46,11 +51,14 @@ def _worker(
         result_queue.put({"success": False, "error": f"{e}\n{traceback.format_exc()}"})
 
 
+from typing import Any
+
+
 def run_process_bag_in_subprocess(
     bag_file_path: str,
     output_npy_path: str,
     timeout_s: float = 300.0,
-    **process_bag_kwargs,
+    **process_bag_kwargs: Any,
 ) -> None:
     """在隔離子進程中執行 process_bag。
 

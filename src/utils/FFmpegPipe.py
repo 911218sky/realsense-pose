@@ -4,13 +4,10 @@ import subprocess
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-
-if TYPE_CHECKING:
-    from PIL import Image as PILImageModule
 
 _has_pil = False
 _Image: Any = None

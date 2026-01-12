@@ -95,7 +95,7 @@ class GaitAnalyzer(LapDetector):
             if hi_n <= lo_n + 1e-6:
                 # 若 fs 太低導致無法設計帶通，退回去趨勢
                 return sig - np.median(sig)
-            b, a = butter(order, [lo_n, hi_n], btype="band")
+            b, a = butter(order, [lo_n, hi_n], btype="band")  # type: ignore[misc]
             return filtfilt(b, a, sig, method="gust")
 
         vzL_f = bandpass(vzL, fps)

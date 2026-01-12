@@ -39,7 +39,7 @@ def canvas_to_numpy_rgba(fig: "Figure") -> np.ndarray[Any, Any]:
     # 優先使用 ARGB
     if hasattr(fig.canvas, "tostring_argb"):
         width, height = fig.canvas.get_width_height()
-        argb = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).reshape(  # pyright: ignore[reportAttributeAccessIssue]
+        argb = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8).reshape(
             height, width, 4
         )
         rgba = argb[:, :, [1, 2, 3, 0]]  # ARGB -> RGBA
@@ -48,7 +48,7 @@ def canvas_to_numpy_rgba(fig: "Figure") -> np.ndarray[Any, Any]:
     # 次選使用 RGB，再補一個 alpha 通道
     if hasattr(fig.canvas, "tostring_rgb"):
         width, height = fig.canvas.get_width_height()
-        rgb = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(  # pyright: ignore[reportAttributeAccessIssue]
+        rgb = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(
             height, width, 3
         )
         alpha = np.full((height, width, 1), 255, dtype=np.uint8)

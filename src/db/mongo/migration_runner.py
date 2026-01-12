@@ -67,7 +67,7 @@ class MigrationRunner:
 
     async def run_migration(
         self, migration_name: str, migration_func: Callable
-    ) -> Dict[str, any]:
+    ) -> Dict[str, int | str]:
         """
         Run a single migration.
 

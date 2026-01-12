@@ -1,8 +1,9 @@
 import os
-from typing import Any, Dict, List, Type
+from typing import Dict, List, Type
 
 from beanie import init_beanie
 from pymongo import AsyncMongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 
 from logger import setup_logger
 
@@ -16,7 +17,7 @@ DB: Dict[str, AsyncMongoClient] = {}
 
 
 async def _ensure_ttl_index(
-    db,
+    db: AsyncDatabase,
     *,
     collection: str,
     field: str,
@@ -43,7 +44,7 @@ async def _ensure_ttl_index(
 
     idx_by_name = {idx.get("name"): idx for idx in indexes if idx.get("name")}
 
-    def _key(idx) -> Dict:
+    def _key(idx: Dict) -> Dict:
         try:
             return dict(idx.get("key", {}))
         except Exception:
@@ -140,7 +141,7 @@ async def get_db(
 async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> AsyncMongoClient:
     """Init PyMongo Async client and Beanie, with basic validation and TTL index prep."""
     # PyMongo Async (Beanie 2.0 推薦的方式)
-    client: AsyncMongoClient[Any] = AsyncMongoClient(
+    client: AsyncMongoClient = AsyncMongoClient(
         MONGO_URI,
         serverSelectionTimeoutMS=timeout_ms,
         connectTimeoutMS=timeout_ms,
@@ -180,9 +181,10 @@ async def _init_db(document_models: List[Type], *, timeout_ms: int = 5000) -> As
         raise RuntimeError("Database initialization failed while preparing models.") from None
 
     try:
-        # quick import sanity check
+        # quick import sanity check (validation only, not used in code)
         from beanie import Document as _D  # noqa: F401
 
+        _ = _D  # Mark as used for type checker
         logger.info("DB & Beanie ready.")
     except Exception as e:
         logger.error("Post-init validation failed: %s", e, exc_info=False)

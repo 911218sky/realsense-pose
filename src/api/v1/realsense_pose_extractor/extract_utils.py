@@ -1,12 +1,11 @@
 import asyncio
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
-from api.config import BAG_DIR, HOST_DATASET_DIR, NPY_DIR, VIDEO_DIR
+from api.config import BAG_DIR, HOST_DATASET_DIR, NPY_DIR
 from api.utils.bag_path_resolver import resolve_bag_path
 from db import RealsensePoseExtractor, UserProfile
 from realsense_pose_extractor.subprocess_runner import run_process_bag_in_subprocess
@@ -128,6 +127,9 @@ async def choose_and_copy_bag_file(
         if not bag_path_copy.exists():
             # DB 有紀錄但檔案已不在（可能被手動刪除）-> 退回複製新檔
             bag_path_copy = Path(BAG_DIR) / bag_source_path.name
+    else:
+        # 沒有找到相同 hash 的紀錄，使用預設路徑
+        bag_path_copy = Path(BAG_DIR) / bag_source_path.name
 
     return bag_path_copy
 

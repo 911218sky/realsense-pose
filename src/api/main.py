@@ -5,7 +5,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -131,7 +131,7 @@ app.add_middleware(PayloadDecodeMiddleware)
 
 # Minimal public endpoints (helpful for load balancers / smoke tests)
 @app.get("/", include_in_schema=False)
-async def root() -> dict:
+async def root() -> dict | FileResponse:
     if SERVE_WEB and WEB_INDEX.is_file():
         return FileResponse(WEB_INDEX)
     return {

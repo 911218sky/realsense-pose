@@ -34,13 +34,13 @@ def _parse_client_secrets(raw: Optional[str]) -> Dict[str, str]:
             raise ValueError(f"AUTH_CLIENT_SECRETS invalid JSON: {e}") from e
         if not isinstance(obj, dict):
             raise ValueError("AUTH_CLIENT_SECRETS JSON must be an object")
-        out: Dict[str, str] = {}
+        result: Dict[str, str] = {}
         for k, v in obj.items():
             if not isinstance(k, str) or not isinstance(v, str):
                 raise ValueError("AUTH_CLIENT_SECRETS JSON must be {string: string}")
             if k.strip() and v:
-                out[k.strip()] = v
-        return out
+                result[k.strip()] = v
+        return result
 
     out: Dict[str, str] = {}
     parts = [p.strip() for p in raw.split(",") if p.strip()]

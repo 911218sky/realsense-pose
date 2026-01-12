@@ -1,6 +1,5 @@
 """檔案與目錄工具函式。"""
 
-import logging
 from pathlib import Path
 from typing import Optional
 

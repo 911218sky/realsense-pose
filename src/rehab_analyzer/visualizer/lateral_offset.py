@@ -17,6 +17,7 @@ from ..constants import (
     DEFAULT_FLAT_FRAC,
     DEFAULT_MIN_V_ABS,
 )
+from ..entities import Lap
 from .utils import VisualizerUtilsMixin
 
 
@@ -39,21 +40,20 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
         candidates: list[tuple[float, float]] = []
 
-        # Check if theta_ylim is a single tuple (lo, hi) or a list of tuples
-        if isinstance(theta_ylim, (list, tuple)) and len(theta_ylim) == 2:
+        # 處理單一 tuple 或 list of tuples
+        if len(theta_ylim) == 2:
             first_elem = theta_ylim[0]
-            # If first element is a scalar (not a tuple/list), treat as single tuple
-            if np.isscalar(first_elem) or first_elem is None:
-                # Single tuple case: (lo, hi)
+            # 如果第一個元素是數字或 None，視為單一 tuple
+            if first_elem is None or isinstance(first_elem, (int, float)):
                 lo_val, hi_val = theta_ylim[0], theta_ylim[1]
-                if lo_val is not None and hi_val is not None and np.isscalar(lo_val) and np.isscalar(hi_val):
-                    lo, hi = float(lo_val), float(hi_val)  # pyright: ignore[reportArgumentType]
+                if lo_val is not None and hi_val is not None:
+                    lo, hi = float(lo_val), float(hi_val)
                     if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
                         candidates.append((lo, hi))
             else:
-                # List of tuples case: [(lo1, hi1), (lo2, hi2), ...]
+                # list of tuples
                 for item in theta_ylim:
-                    if not isinstance(item, (list, tuple)) or len(item) != 2:
+                    if len(item) != 2:
                         continue
                     lo_val, hi_val = item[0], item[1]
                     if lo_val is None or hi_val is None:
@@ -61,10 +61,10 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
                     lo, hi = float(lo_val), float(hi_val)
                     if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
                         candidates.append((lo, hi))
-        elif isinstance(theta_ylim, list):
-            # List of tuples case: [(lo1, hi1), (lo2, hi2), ...]
+        else:
+            # list of tuples
             for item in theta_ylim:
-                if not isinstance(item, (list, tuple)) or len(item) != 2:
+                if len(item) != 2:
                     continue
                 lo_val, hi_val = item[0], item[1]
                 if lo_val is None or hi_val is None:
@@ -174,7 +174,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
     def _render_single_lap_offset(
         self,
         lap_idx: int,
-        lap,
+        lap: Lap,
         lat_raw_all: np.ndarray[Any, Any],
         lat_smooth_all: np.ndarray[Any, Any],
         theta_all: np.ndarray[Any, Any],
@@ -295,7 +295,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
     def _draw_theta_subplot(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         t_rel: np.ndarray[Any, Any],
         theta_rel: np.ndarray[Any, Any],
         sample_idx: np.ndarray[Any, Any],
@@ -306,7 +306,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         max_points_plot: int | None,
         show_samples: bool,
         theta_ylim: list[tuple[float, float | None]] | None,
-        lap,
+        lap: Lap,
     ) -> None:
         """繪製 θ(t) 子圖。"""
         ax.plot(t_rel, theta_rel, label=r"θ(t) (deg) — per-lap relative")

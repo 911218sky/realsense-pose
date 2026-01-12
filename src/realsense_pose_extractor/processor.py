@@ -6,7 +6,7 @@ import time
 from collections import deque
 from logging import Logger
 from pathlib import Path
-from typing import Optional
+from typing import Any, Any, Optional
 
 import cv2
 import mediapipe as mp
@@ -94,7 +94,7 @@ class PoseProcessor(
         max_depth_m: Optional[float] = 8.0,
         pre_pipeline_delay_s: float = 0.5,
         post_pipeline_delay_s: float = 1.0,
-        **kwargs,
+        **kwargs: Any,
     ) -> np.ndarray:
         """
         從 bag 檔提取 MediaPipe Pose 並輸出 3D 座標。

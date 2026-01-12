@@ -2,10 +2,11 @@
 
 import gzip
 import io
-from typing import Callable, Iterable, List, Tuple
+from typing import Iterable, List, Tuple
 
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 Header = Tuple[bytes, bytes]
 
@@ -44,11 +45,11 @@ class PayloadDecodeMiddleware:
     request body 會換成解壓後的內容。
     """
 
-    def __init__(self, app: Callable, *, max_decompressed_bytes: int = 0) -> None:
+    def __init__(self, app: ASGIApp, *, max_decompressed_bytes: int = 0) -> None:
         self.app = app
         self.max_decompressed_bytes = max(0, int(max_decompressed_bytes))
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
