@@ -4,7 +4,9 @@
 提供共用的輸出目錄、前綴名稱和軸顯示設定。
 """
 from pathlib import Path
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING
+
+from matplotlib.axes import Axes
 
 from ..entities import XYZPair
 from ..rehab_analyzer import RehabilitationSessionAnalyzer
@@ -104,10 +106,10 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
 
     def _apply_limits(
         self,
-        ax: "plt.Axes",
+        ax: Axes,
         *,
-        xlim: tuple[float, float | None] = None,
-        ylim: tuple[float, float | None] = None,
+        xlim: tuple[float, float | None] | None = None,
+        ylim: tuple[float, float | None] | None = None,
     ) -> None:
         """
         設定圖形座標軸範圍。

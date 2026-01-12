@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import Any
 
+from matplotlib.axes import Axes
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -29,25 +30,46 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
     def _resolve_theta_ylim_for_lap(
         self,
-        theta_ylim: list[tuple[float, float | None]],
+        theta_ylim: list[tuple[float, float | None]] | None,
         theta_values: np.ndarray[Any, Any],
-    ) -> tuple[float, float | None]:
+    ) -> tuple[float, float] | None:
         """根據這一圈的 theta(t) 自動決定 y 軸範圍。"""
         if theta_ylim is None:
             return None
 
         candidates: list[tuple[float, float]] = []
 
-        if isinstance(theta_ylim, (list, tuple)) and len(theta_ylim) == 2 \
-           and all(np.isscalar(v) for v in theta_ylim):
-            lo, hi = float(theta_ylim[0]), float(theta_ylim[1])
-            if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
-                candidates.append((lo, hi))
-        else:
+        # Check if theta_ylim is a single tuple (lo, hi) or a list of tuples
+        if isinstance(theta_ylim, (list, tuple)) and len(theta_ylim) == 2:
+            first_elem = theta_ylim[0]
+            # If first element is a scalar (not a tuple/list), treat as single tuple
+            if np.isscalar(first_elem) or first_elem is None:
+                # Single tuple case: (lo, hi)
+                lo_val, hi_val = theta_ylim[0], theta_ylim[1]
+                if lo_val is not None and hi_val is not None and np.isscalar(lo_val) and np.isscalar(hi_val):
+                    lo, hi = float(lo_val), float(hi_val)  # pyright: ignore[reportArgumentType]
+                    if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
+                        candidates.append((lo, hi))
+            else:
+                # List of tuples case: [(lo1, hi1), (lo2, hi2), ...]
+                for item in theta_ylim:
+                    if not isinstance(item, (list, tuple)) or len(item) != 2:
+                        continue
+                    lo_val, hi_val = item[0], item[1]
+                    if lo_val is None or hi_val is None:
+                        continue
+                    lo, hi = float(lo_val), float(hi_val)
+                    if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
+                        candidates.append((lo, hi))
+        elif isinstance(theta_ylim, list):
+            # List of tuples case: [(lo1, hi1), (lo2, hi2), ...]
             for item in theta_ylim:
                 if not isinstance(item, (list, tuple)) or len(item) != 2:
                     continue
-                lo, hi = float(item[0]), float(item[1])
+                lo_val, hi_val = item[0], item[1]
+                if lo_val is None or hi_val is None:
+                    continue
+                lo, hi = float(lo_val), float(hi_val)
                 if np.isfinite(lo) and np.isfinite(hi) and hi > lo:
                     candidates.append((lo, hi))
 
@@ -91,12 +113,12 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         *,
         k_smooth: int = 1,
         dpi: int = 130,
-        num_indices: list[int | None] = None,
+        num_indices: list[int | None] | None = None,
         max_points_plot: int | None = 150,
         show_samples: bool = True,
         save_name: str | None = None,
-        lat_ylim: tuple[float, float | None] = None,
-        theta_ylim: list[tuple[float, float | None]] = None,
+        lat_ylim: tuple[float, float | None] | None = None,
+        theta_ylim: list[tuple[float, float | None]] | None = None,
     ) -> list[Path]:
         """
         針對每圈產生兩子圖：
@@ -118,7 +140,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
         save_paths: list[Path] = []
         save_name_template = save_name or "lap_{lap_idx}_diagnostics.png"
-        save_name_template = add_prefix_to_filename(save_name_template, self.prefix)
+        save_name_template = add_prefix_to_filename(save_name_template, self.prefix) or save_name_template
 
         # 整段 lateral offset / heading
         fps = float(self._estimate_fps())
@@ -160,8 +182,8 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         dpi: int,
         max_points_plot: int | None,
         show_samples: bool,
-        lat_ylim: tuple[float, float | None],
-        theta_ylim: list[tuple[float, float | None]],
+        lat_ylim: tuple[float, float | None] | None,
+        theta_ylim: list[tuple[float, float | None]] | None,
         save_name_template: str,
     ) -> Path:
         """渲染單圈的診斷圖。"""
@@ -171,6 +193,8 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         def rel(i: int) -> int:
             return int(i - start_idx)
 
+        if self.t is None:
+            raise ValueError("時間陣列 self.t 為 None，無法繪製診斷圖。")
         t_rel = self.t[start_idx : end_idx + 1]
         lat_rel = lat_smooth_all[start_idx : end_idx + 1]
         lat_raw_rel = lat_raw_all[start_idx : end_idx + 1]
@@ -218,7 +242,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _draw_turn_region(
-        axis: plt.Axes,
+        axis: Axes,
         t: np.ndarray[Any, Any],
         start_idx: int,
         end_idx: int,
@@ -232,7 +256,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
     def _draw_lateral_offset_subplot(
         self,
-        ax: plt.Axes,
+        ax: Axes,
         t_rel: np.ndarray[Any, Any],
         lat_raw_rel: np.ndarray[Any, Any],
         lat_rel: np.ndarray[Any, Any],
@@ -244,7 +268,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         k_smooth: int,
         max_points_plot: int | None,
         show_samples: bool,
-        lat_ylim: tuple[float, float | None],
+        lat_ylim: tuple[float, float | None] | None,
         lap_idx: int,
     ) -> None:
         """繪製 lateral offset 子圖。"""
@@ -281,7 +305,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         th_end_rel: int,
         max_points_plot: int | None,
         show_samples: bool,
-        theta_ylim: list[tuple[float, float | None]],
+        theta_ylim: list[tuple[float, float | None]] | None,
         lap,
     ) -> None:
         """繪製 θ(t) 子圖。"""

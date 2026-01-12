@@ -29,14 +29,14 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
         self,
         left_joint: int | str,
         right_joint: int | str,
-        labels: list[str | None] = None,
+        labels: list[str | None] | None = None,
         *,
         smooth_window_s: float = DEFAULT_SMOOTH_WINDOW_S,
         draw_original: bool = True,
         dpi: int = 150,
         figsize: tuple[float, float] = (11.0, 4.0),
         save_name: str | None = None,
-        ylim: tuple[float, float | None] = None,
+        ylim: tuple[float, float | None] | None = None,
     ) -> Path:
         """
         畫出單一曲線：「左腳高度 - 右腳高度」隨時間變化。
@@ -46,7 +46,7 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
         """
         t, series = self.compute_y_heigh(
             joints=[left_joint, right_joint],
-            smooth_window=smooth_window_s,
+            smooth_window=int(round(smooth_window_s * self._estimate_fps())),
         )
         if len(series) != 2:
             raise ValueError("save_y_height_diff 需要剛好兩個關節（左、右）。")
@@ -92,7 +92,7 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
 
         save_name_template = save_name or "y_height_diff_{left}_{right}.png"
         save_name_final = save_name_template.format(left=str(left_joint), right=str(right_joint))
-        filename = add_prefix_to_filename(save_name_final, self.prefix)
+        filename = add_prefix_to_filename(save_name_final, self.prefix) or save_name_final
         out_path = Path(self.out_dir) / filename
         out_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(out_path))
@@ -102,13 +102,13 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _compute_tick_steps(
-        ylim: tuple[float, float | None],
+        ylim: tuple[float, float | None] | None,
         left_plot: np.ndarray[Any, Any],
         right_plot: np.ndarray[Any, Any],
         diff_plot: np.ndarray[Any, Any],
     ) -> tuple[float, float]:
         """計算 Y 軸刻度步長。"""
-        if ylim is not None:
+        if ylim is not None and ylim[1] is not None:
             y0, y1 = float(ylim[0]), float(ylim[1])
         else:
             y0 = float(np.nanmin([np.nanmin(left_plot), np.nanmin(right_plot), np.nanmin(diff_plot)]))
