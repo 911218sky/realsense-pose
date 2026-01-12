@@ -4,7 +4,7 @@ Top-down 行走軌跡影片輸出。
 使用髖點在投影平面上的 2D 軌跡，顯示全程軌跡、尾巴軌跡、椅子/錐桶位置等。
 """
 from pathlib import Path
-from typing import Optional, Tuple, Union, List
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,14 +43,14 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         smooth_window_s: float = DEFAULT_SMOOTH_WINDOW_S,
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
-        save_name: Optional[str] = None,
+        save_name: str | None = None,
         *,
-        left_joint: Union[int, str] = "L_HIP",
-        right_joint: Union[int, str] = "R_HIP",
+        left_joint: int | str = "L_HIP",
+        right_joint: int | str = "R_HIP",
         fps_out: int = 24,
         speed: float = 1.0,
         dpi: int = 110,
-        figsize: Tuple[float, float] = (7.6, 7.2),
+        figsize: tuple[float, float] = (7.6, 7.2),
         draw_radius: bool = False,
         draw_turn_markers: bool = True,
         bg_color: str = "#ffffff",
@@ -121,7 +121,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         if rotate_180:
             cx = 0.5 * (xmin + xmax)
             cy = 0.5 * (ymin + ymax)
-            L2, R2, C2, chair_pos, cone_pos = self._rotate_all_coords(
+            L2, R2, C2, chair_pos, cone_pos = self._rotate_all_coords(  # type: ignore[assignment]
                 L2, R2, C2, chair_pos, cone_pos, cx, cy
             )
 
@@ -201,8 +201,8 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
         # 預先擷取背景
         fig.canvas.draw()
-        bg_main = fig.canvas.copy_from_bbox(ax_main.bbox)
-        bg_info = fig.canvas.copy_from_bbox(ax_info.bbox)
+        bg_main = fig.canvas.copy_from_bbox(ax_main.bbox)  # type: ignore
+        bg_info = fig.canvas.copy_from_bbox(ax_info.bbox)  # type: ignore
 
         # FFmpeg 管線
         save_path = self._setup_video_output(
@@ -232,18 +232,18 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return save_path
 
     def _rotate_all_coords(
-        self, L2: np.ndarray, R2: np.ndarray, C2: np.ndarray,
-        chair_pos: np.ndarray, cone_pos: np.ndarray, cx: float, cy: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        self, L2: np.ndarray[Any, Any], R2: np.ndarray[Any, Any], C2: np.ndarray[Any, Any],
+        chair_pos: np.ndarray[Any, Any], cone_pos: np.ndarray[Any, Any], cx: float, cy: float
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """旋轉所有座標 180 度。"""
-        def _rotate(arr: np.ndarray) -> np.ndarray:
+        def _rotate(arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
             rotated = np.array(arr, dtype=float, copy=True)
             rotated[..., 0] = 2 * cx - rotated[..., 0]
             rotated[..., 1] = 2 * cy - rotated[..., 1]
             return rotated
         return _rotate(L2), _rotate(R2), _rotate(C2), _rotate(chair_pos), _rotate(cone_pos)
 
-    def _interpolate_time(self, num_frames: int, fps_in: float) -> np.ndarray:
+    def _interpolate_time(self, num_frames: int, fps_in: float) -> np.ndarray[Any, Any]:
         """處理時間軸（若有缺值則線性內插）。"""
         if self.t is not None and np.isfinite(self.t).any():
             finite_mask = np.isfinite(self.t)
@@ -255,9 +255,9 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return np.arange(num_frames, dtype=float) / max(1.0, fps_in)
 
     def _compute_speed_arrays(
-        self, C2: np.ndarray, t_all: np.ndarray, idxs_full: np.ndarray,
+        self, C2: np.ndarray[Any, Any], t_all: np.ndarray[Any, Any], idxs_full: np.ndarray[Any, Any],
         fps_in: float, stride: int, avg_window_s: float, M: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         """計算瞬時速度和滑動平均速度。"""
         dt = np.diff(t_all, prepend=t_all[0])
         positive_dt_mask = np.isfinite(dt) & (dt > 0)
@@ -280,14 +280,14 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return speed_sub, spd_avg_arr
 
     def _create_trajectory_figure(
-        self, figsize: Tuple[float, float], dpi: int, bg_color: str
-    ) -> Tuple[plt.Figure, plt.Axes, plt.Axes, plt.Axes]:
+        self, figsize: tuple[float, float], dpi: int, bg_color: str
+    ) -> tuple[plt.Figure, plt.Axes, plt.Axes, plt.Axes]:
         """建立軌跡影片的 Figure 和 Axes。"""
         fig = plt.figure(figsize=figsize, dpi=dpi)
         left_margin = 0.02
-        ax_legend = fig.add_axes([left_margin, 0.18, 0.10, 0.76], facecolor=bg_color)
-        ax_main = fig.add_axes([left_margin + 0.12, 0.18, 1.0 - (left_margin + 0.14), 0.76], facecolor=bg_color)
-        ax_info = fig.add_axes([0.00, 0.02, 1.00, 0.12], facecolor=bg_color)
+        ax_legend = fig.add_axes((left_margin, 0.18, 0.10, 0.76), facecolor=bg_color)
+        ax_main = fig.add_axes((left_margin + 0.12, 0.18, 1.0 - (left_margin + 0.14), 0.76), facecolor=bg_color)
+        ax_info = fig.add_axes((0.00, 0.02, 1.00, 0.12), facecolor=bg_color)
         ax_legend.set_axis_off()
         return fig, ax_legend, ax_main, ax_info
 
@@ -296,9 +296,9 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         trail_color_L: str, trail_color_R: str, draw_radius: bool, draw_turn_markers: bool,
         rC: float, rK: float, turn_cone_start_color: str, turn_cone_end_color: str,
         turn_chair_start_color: str, turn_chair_end_color: str
-    ) -> List[Line2D]:
+    ) -> list[Line2D]:
         """建立圖例項目。"""
-        handles: List[Line2D] = [
+        handles: list[Line2D] = [
             Line2D([], [], color=path_color_L, lw=1.4, label="L hip (full)"),
             Line2D([], [], color=path_color_R, lw=1.4, label="R hip (full)"),
             Line2D([], [], marker="s", markersize=8, color=chair_color, lw=0, label="Chair"),
@@ -322,8 +322,8 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return handles
 
     def _draw_static_elements(
-        self, ax: plt.Axes, L2: np.ndarray, R2: np.ndarray, valid: np.ndarray,
-        chair_pos: np.ndarray, cone_pos: np.ndarray,
+        self, ax: plt.Axes, L2: np.ndarray[Any, Any], R2: np.ndarray[Any, Any], valid: np.ndarray[Any, Any],
+        chair_pos: np.ndarray[Any, Any], cone_pos: np.ndarray[Any, Any],
         path_color_L: str, path_color_R: str, chair_color: str, cone_color: str,
         draw_radius: bool, rC: float, rK: float
     ) -> None:
@@ -335,15 +335,15 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
         if draw_radius:
             if np.isfinite(rC) and rC > 0:
-                ax.add_patch(Circle(chair_pos, rC, fill=False, lw=1.5, ls="--", color=chair_color, alpha=0.9, clip_on=False))
+                ax.add_patch(Circle(tuple(chair_pos), rC, fill=False, lw=1.5, ls="--", color=chair_color, alpha=0.9, clip_on=False))
             if np.isfinite(rK) and rK > 0:
-                ax.add_patch(Circle(cone_pos, rK, fill=False, lw=1.5, ls="--", color=cone_color, alpha=0.9, clip_on=False))
+                ax.add_patch(Circle(tuple(cone_pos), rK, fill=False, lw=1.5, ls="--", color=cone_color, alpha=0.9, clip_on=False))
 
     def _create_turn_scatters(
         self, ax: plt.Axes,
         turn_cone_start_color: str, turn_cone_end_color: str,
         turn_chair_start_color: str, turn_chair_end_color: str
-    ) -> dict:
+    ) -> dict[str, Any]:
         """創建轉身標記的 scatter 物件。"""
         return {
             "cone_start": ax.scatter([], [], s=70, marker="o", color=turn_cone_start_color, alpha=0.95, zorder=6),
@@ -352,7 +352,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
             "chair_end": ax.scatter([], [], s=70, marker="P", color=turn_chair_end_color, alpha=0.95, zorder=6),
         }
 
-    def _build_frame_to_lap_map(self, det, num_frames: int) -> np.ndarray:
+    def _build_frame_to_lap_map(self, det, num_frames: int) -> np.ndarray[Any, Any]:
         """建立 frame -> lap 映射。"""
         frame_to_lap = np.full(num_frames, -1, dtype=int)
         for lap_idx, lap in enumerate(det.laps):
@@ -362,7 +362,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
                 frame_to_lap[start_idx_lap : end_idx_lap + 1] = lap_idx
         return frame_to_lap
 
-    def _compute_lap_first_indices(self, lap_idx_sub: np.ndarray, num_laps: int) -> np.ndarray:
+    def _compute_lap_first_indices(self, lap_idx_sub: np.ndarray[Any, Any], num_laps: int) -> np.ndarray[Any, Any]:
         """計算每圈在子序列中的第一個索引。"""
         lap_first = np.full(num_laps, -1, dtype=int)
         for li in range(num_laps):
@@ -395,7 +395,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
             ax.spines[side].set_visible(False)
         ax.grid(True, linestyle="--", alpha=0.18)
 
-    def _setup_info_axes(self, ax: plt.Axes) -> Tuple:
+    def _setup_info_axes(self, ax: plt.Axes) -> tuple[Any, Any]:
         """設置底部資訊區。"""
         ax.set_xticks([]); ax.set_yticks([])
         for spine in ax.spines.values():
@@ -407,7 +407,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
     def _create_dynamic_artists(
         self, ax: plt.Axes, trail_color_L: str, trail_color_R: str, dot_color_L: str, dot_color_R: str
-    ) -> Tuple:
+    ) -> tuple[Any, Any, Any, Any, Any]:
         """創建動態繪圖物件。"""
         tail_L, = ax.plot([], [], lw=2.4, color=trail_color_L, zorder=3, animated=True)
         tail_R, = ax.plot([], [], lw=2.4, color=trail_color_R, zorder=3, animated=True)
@@ -417,27 +417,29 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
         return tail_L, tail_R, head_L, head_R, pelvis_line
 
     def _setup_video_output(
-        self, save_name: Optional[str], left_joint, right_joint,
-        figsize: Tuple[float, float], dpi: int, fps_out: int,
+        self, save_name: str | None, left_joint, right_joint,
+        figsize: tuple[float, float], dpi: int, fps_out: int,
         ffmpeg_preset: str, ffmpeg_crf: int
     ) -> Path:
         """設置影片輸出路徑。"""
         save_name_template = save_name or "trajectory_{left_joint}_{right_joint}.mp4"
         save_name_final = save_name_template.format(left_joint=left_joint, right_joint=right_joint)
         filename = add_prefix_to_filename(save_name_final, self.prefix)
+        if filename is None:
+            filename = save_name_final
         save_path = Path(self.out_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
         return save_path
 
     def _render_frames(
-        self, fig, canvas, pipe, M: int, idxs_full: np.ndarray,
-        L2_sub: np.ndarray, R2_sub: np.ndarray, C2: np.ndarray,
-        lap_idx_sub: np.ndarray, lap_first: np.ndarray, num_laps: int,
-        frame_to_lap: np.ndarray, det,
+        self, fig, canvas, pipe, M: int, idxs_full: np.ndarray[Any, Any],
+        L2_sub: np.ndarray[Any, Any], R2_sub: np.ndarray[Any, Any], C2: np.ndarray[Any, Any],
+        lap_idx_sub: np.ndarray[Any, Any], lap_first: np.ndarray[Any, Any], num_laps: int,
+        frame_to_lap: np.ndarray[Any, Any], det,
         tail_L, tail_R, head_L, head_R, pelvis_line,
-        turn_scatters: dict, draw_turn_markers: bool, num_frames: int,
+        turn_scatters: dict[str, Any], draw_turn_markers: bool, num_frames: int,
         ax_main, ax_info, bg_main, bg_info,
-        time_labels: np.ndarray, spd_avg_arr: np.ndarray, avg_window_s: float,
+        time_labels: np.ndarray[Any, Any], spd_avg_arr: np.ndarray[Any, Any], avg_window_s: float,
         text_time, text_speed
     ) -> None:
         """渲染所有影格。"""
@@ -493,16 +495,16 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
             pipe.write_frame_from_canvas(canvas)
 
     def _update_turn_markers(
-        self, frame_idx: int, frame_to_lap: np.ndarray, det,
-        C2: np.ndarray, num_frames: int, turn_scatters: dict,
-        empty_points: np.ndarray, ax_main
+        self, frame_idx: int, frame_to_lap: np.ndarray[Any, Any], det,
+        C2: np.ndarray[Any, Any], num_frames: int, turn_scatters: dict[str, Any],
+        empty_points: np.ndarray[Any, Any], ax_main
     ) -> None:
         """更新轉身標記位置。"""
         lap_id_mark = frame_to_lap[frame_idx]
         if 0 <= lap_id_mark < len(det.laps):
             lap = det.laps[lap_id_mark]
 
-            def _get_point(idx: int) -> Optional[np.ndarray]:
+            def _get_point(idx: int) -> np.ndarray[Any, Any] | None:
                 return C2[idx] if 0 <= idx < num_frames else None
 
             pts = {

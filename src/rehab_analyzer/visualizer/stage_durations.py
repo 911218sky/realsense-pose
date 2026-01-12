@@ -4,7 +4,7 @@
 利用 detect_laps_auto() 的 Lap 結果，將每圈分為 6 個階段並畫成堆疊橫條圖。
 """
 from pathlib import Path
-from typing import Optional, List
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ from ..constants import (
 from .utils import VisualizerUtilsMixin
 
 # 6 個階段的顯示文字
-STAGE_LABELS: List[str] = [
+STAGE_LABELS: list[str] = [
     "1 Stand up",
     "2 Walk to cone",
     "3 Turn at cone",
@@ -30,7 +30,7 @@ STAGE_LABELS: List[str] = [
 ]
 
 # 對應 Lap 欄位名稱
-STAGE_KEYS: List[str] = [
+STAGE_KEYS: list[str] = [
     "dur_stand",
     "dur_to_cone",
     "dur_cone_turn",
@@ -40,7 +40,7 @@ STAGE_KEYS: List[str] = [
 ]
 
 # 固定用一組顏色，依序對應 6 段
-STAGE_COLORS: List[str] = [
+STAGE_COLORS: list[str] = [
     "#4C78A8",
     "#F58518",
     "#E45756",
@@ -71,7 +71,7 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
-        save_name: Optional[str] = None,
+        save_name: str | None = None,
         dpi: int = 190,
         show_seconds: bool = True,
         show_meters: bool = True,
@@ -98,7 +98,7 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
             raise ValueError("沒有可視覺化的圈數（laps 為空）。")
 
         # 收集每圈各階段秒數 (N × 6)
-        durations: List[List[float]] = []
+        durations: list[list[float]] = []
         for lap in laps:
             row = [max(0.0, getattr(lap, key, 0.0)) for key in STAGE_KEYS]
             durations.append(row)
@@ -224,8 +224,8 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
         self,
         ax: plt.Axes,
         bars: list,
-        sec: np.ndarray,
-        meters_map: np.ndarray,
+        sec: np.ndarray[Any, Any],
+        meters_map: np.ndarray[Any, Any],
         show_seconds: bool,
         show_meters: bool,
         min_width_sec: float,

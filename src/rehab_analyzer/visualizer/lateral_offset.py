@@ -4,7 +4,7 @@
 包含 lateral offset vs time 和骨盆朝向 θ(t) 的可視化。
 """
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,14 +29,14 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
     def _resolve_theta_ylim_for_lap(
         self,
-        theta_ylim: Optional[List[Tuple[float, float]]],
-        theta_values: np.ndarray,
-    ) -> Optional[Tuple[float, float]]:
+        theta_ylim: list[tuple[float, float | None]],
+        theta_values: np.ndarray[Any, Any],
+    ) -> tuple[float, float | None]:
         """根據這一圈的 theta(t) 自動決定 y 軸範圍。"""
         if theta_ylim is None:
             return None
 
-        candidates: List[Tuple[float, float]] = []
+        candidates: list[tuple[float, float]] = []
 
         if isinstance(theta_ylim, (list, tuple)) and len(theta_ylim) == 2 \
            and all(np.isscalar(v) for v in theta_ylim):
@@ -59,7 +59,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         if not valid.any():
             return candidates[0]
 
-        best_range: Tuple[float, float] = candidates[0]
+        best_range: tuple[float, float] = candidates[0]
         best_score = -1
         best_span = float("inf")
 
@@ -91,13 +91,13 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         *,
         k_smooth: int = 1,
         dpi: int = 130,
-        num_indices: Optional[List[int]] = None,
-        max_points_plot: Optional[int] = 150,
+        num_indices: list[int | None] = None,
+        max_points_plot: int | None = 150,
         show_samples: bool = True,
-        save_name: Optional[str] = None,
-        lat_ylim: Optional[Tuple[float, float]] = None,
-        theta_ylim: Optional[List[Tuple[float, float]]] = None,
-    ) -> List[Path]:
+        save_name: str | None = None,
+        lat_ylim: tuple[float, float | None] = None,
+        theta_ylim: list[tuple[float, float | None]] = None,
+    ) -> list[Path]:
         """
         針對每圈產生兩子圖：
 
@@ -116,7 +116,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         if not laps:
             raise ValueError("沒有圈數可視覺化（laps 為空）。")
 
-        save_paths: List[Path] = []
+        save_paths: list[Path] = []
         save_name_template = save_name or "lap_{lap_idx}_diagnostics.png"
         save_name_template = add_prefix_to_filename(save_name_template, self.prefix)
 
@@ -153,15 +153,15 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         self,
         lap_idx: int,
         lap,
-        lat_raw_all: np.ndarray,
-        lat_smooth_all: np.ndarray,
-        theta_all: np.ndarray,
+        lat_raw_all: np.ndarray[Any, Any],
+        lat_smooth_all: np.ndarray[Any, Any],
+        theta_all: np.ndarray[Any, Any],
         k_smooth: int,
         dpi: int,
-        max_points_plot: Optional[int],
+        max_points_plot: int | None,
         show_samples: bool,
-        lat_ylim: Optional[Tuple[float, float]],
-        theta_ylim: Optional[List[Tuple[float, float]]],
+        lat_ylim: tuple[float, float | None],
+        theta_ylim: list[tuple[float, float | None]],
         save_name_template: str,
     ) -> Path:
         """渲染單圈的診斷圖。"""
@@ -209,7 +209,7 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
         return out_path
 
     @staticmethod
-    def _compute_sample_idx(length: int, max_points: Optional[int]) -> np.ndarray:
+    def _compute_sample_idx(length: int, max_points: int | None) -> np.ndarray[Any, Any]:
         """決定要取樣的索引。"""
         if max_points is None or max_points <= 0 or length <= max_points:
             return np.arange(length, dtype=int)
@@ -219,12 +219,12 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
     @staticmethod
     def _draw_turn_region(
         axis: plt.Axes,
-        t: np.ndarray,
+        t: np.ndarray[Any, Any],
         start_idx: int,
         end_idx: int,
         *,
         alpha: float = 0.15,
-        label: Optional[str] = None,
+        label: str | None = None,
     ) -> None:
         """在時間區間上畫出轉身區域底色。"""
         if 0 <= start_idx < len(t) and 0 <= end_idx < len(t) and end_idx >= start_idx:
@@ -233,18 +233,18 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
     def _draw_lateral_offset_subplot(
         self,
         ax: plt.Axes,
-        t_rel: np.ndarray,
-        lat_raw_rel: np.ndarray,
-        lat_rel: np.ndarray,
-        sample_idx: np.ndarray,
+        t_rel: np.ndarray[Any, Any],
+        lat_raw_rel: np.ndarray[Any, Any],
+        lat_rel: np.ndarray[Any, Any],
+        sample_idx: np.ndarray[Any, Any],
         tc_start_rel: int,
         tc_end_rel: int,
         th_start_rel: int,
         th_end_rel: int,
         k_smooth: int,
-        max_points_plot: Optional[int],
+        max_points_plot: int | None,
         show_samples: bool,
-        lat_ylim: Optional[Tuple[float, float]],
+        lat_ylim: tuple[float, float | None],
         lap_idx: int,
     ) -> None:
         """繪製 lateral offset 子圖。"""
@@ -272,16 +272,16 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
     def _draw_theta_subplot(
         self,
         ax: plt.Axes,
-        t_rel: np.ndarray,
-        theta_rel: np.ndarray,
-        sample_idx: np.ndarray,
+        t_rel: np.ndarray[Any, Any],
+        theta_rel: np.ndarray[Any, Any],
+        sample_idx: np.ndarray[Any, Any],
         tc_start_rel: int,
         tc_end_rel: int,
         th_start_rel: int,
         th_end_rel: int,
-        max_points_plot: Optional[int],
+        max_points_plot: int | None,
         show_samples: bool,
-        theta_ylim: Optional[List[Tuple[float, float]]],
+        theta_ylim: list[tuple[float, float | None]],
         lap,
     ) -> None:
         """繪製 θ(t) 子圖。"""

@@ -4,10 +4,11 @@
 包含空間頻譜和多系列 FFT 分析。
 """
 from pathlib import Path
-from typing import Optional, Tuple, List, Union, Sequence, Literal, Mapping, Any
+from typing import Any, Sequence, Literal, Mapping
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
 from utils import add_prefix_to_filename
 from .utils import VisualizerUtilsMixin
@@ -29,9 +30,9 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         min_peak_distance_ratio: float = 0.01,
         min_db: float = -40.0,
         min_freq: float = 0.5,
-        save_name: Optional[str] = None,
-        top_k: Optional[int] = None,
-        spec_ylim: Optional[Tuple[float, float]] = None,
+        save_name: str | None = None,
+        top_k: int | None = None,
+        spec_ylim: tuple[float, float | None] | None = None,
     ) -> Path:
         """
         實際繪製一個 pair 的空間頻譜圖（以 dB 顯示）。
@@ -69,11 +70,12 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         ax.set_ylabel("Power (dB, re max = 0 dB)")
         ax.set_title(f"{self.prefix} - Spatial spectrum with {pair_str} as independent")
         ax.grid(True, alpha=0.3)
-        self._apply_limits(ax, ylim=spec_ylim)
+        if spec_ylim is not None:
+            self._apply_limits(ax, ylim=spec_ylim)
 
         default_name = (save_name or "{pair}_spatial_spectrum_db.png").format(pair=pair_str)
         filename = add_prefix_to_filename(default_name, self.prefix)
-        save_path = self.out_dir / filename
+        save_path = Path(self.out_dir) / (filename or default_name)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
         plt.close(fig)
@@ -81,14 +83,14 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
     def _annotate_spectrum_peaks(
         self,
-        ax: plt.Axes,
-        f: np.ndarray,
-        spec_db: np.ndarray,
+        ax: Axes,
+        f: np.ndarray[Any, Any],
+        spec_db: np.ndarray[Any, Any],
         top_k: int,
         min_freq: float,
         min_db: float,
         min_peak_distance_ratio: float,
-        spec_ylim: Optional[Tuple[float, float]],
+        spec_ylim: tuple[float, float | None] | None,
     ) -> None:
         """標註頻譜的峰值。"""
         idx_candidates = []
@@ -112,7 +114,7 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         f_span = float(f.max() - f.min()) if f.size else 0.0
         min_df = min_peak_distance_ratio * f_span if f_span > 0.0 else 0.0
 
-        chosen: List[int] = []
+        chosen: list[int] = []
         for idx in idx_sorted:
             if len(chosen) >= top_k:
                 break
@@ -122,7 +124,7 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
                 if all(abs(f[idx] - f[j]) >= min_df for j in chosen):
                     chosen.append(idx)
 
-        if spec_ylim is not None:
+        if spec_ylim is not None and spec_ylim[1] is not None:
             y_span = float(spec_ylim[1] - spec_ylim[0])
             dy = 0.04 * y_span
         else:
@@ -149,13 +151,13 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
     def save_spatial_spectrum(
         self,
         *,
-        pair: List[Literal["xz", "yz"]] = ["xz", "yz"],
+        pair: list[Literal["xz", "yz"]] | None = None,
         k_smooth: int = 2,
-        top_k: Optional[int] = None,
+        top_k: int | None = None,
         dpi: int = 150,
-        spec_ylim: Optional[List[Tuple[float, float]]] = None,
-        save_name: Optional[Union[str, List[str]]] = None,
-    ) -> List[Path]:
+        spec_ylim: list[tuple[float, float | None]] | None = None,
+        save_name: str | list[str | None] | None = None,
+    ) -> list[Path]:
         """
         一次產生多個空間頻譜圖。
 
@@ -166,14 +168,17 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         save_name:
             可傳字串或字串列表（與 pair 對應）
         """
-        save_paths: List[Path] = []
+        if pair is None:
+            pair = ["xz", "yz"]
+        
+        save_paths: list[Path] = []
 
         for idx, p in enumerate(pair):
             if p not in ("xz", "yz"):
                 raise ValueError(f"pair 必須是 'xz' 或 'yz'，但得到 {p}")
 
             if isinstance(save_name, list):
-                this_save_name: Optional[str] = save_name[idx]
+                this_save_name: str | None = save_name[idx]
             else:
                 this_save_name = save_name
 
@@ -193,20 +198,20 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
     def save_multi_fft_from_series(
         self,
-        joints: Sequence[Union[int, str, Sequence[Union[int, str]]]],
+        joints: Sequence[int | str | Sequence[int | str]],
         labels: Sequence[str],
         *,
         component: Literal["x", "y", "z"] = "z",
         max_peaks: int = 3,
         dpi: int = 150,
-        figsize: Tuple[float, float] = (11.0, 4.0),
+        figsize: tuple[float, float] = (11.0, 4.0),
         min_peak_distance_ratio: float = 0.01,
         min_db: float = -40.0,
         min_freq: float = 0.05,
-        save_name: Optional[str] = None,
-        xlim: Optional[Tuple[float, float]] = None,
-        ylim: Optional[Tuple[float, float]] = None,
-        fft_params: Optional[Mapping[str, Any]] = None,
+        save_name: str | None = None,
+        xlim: tuple[float, float | None] | None = None,
+        ylim: tuple[float, float | None] | None = None,
+        fft_params: Mapping[str, Any] | None = None,
     ) -> Path:
         """
         對多條時間序列做 FFT/PSD，畫在同一張圖上。
@@ -239,9 +244,10 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
         for joint_spec in joints:
             series = self._series_from_joint_spec(joint_spec, component_idx)
+            t_arr = self.t if self.t is not None else np.arange(len(series), dtype=float)
             res = self.compute_lateral_offset_fft(
                 lat=np.asarray(series, dtype=float),
-                t=self.t,
+                t=t_arr,
                 **fft_kwargs,
             )
             results.append(res)
@@ -280,31 +286,34 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         ax.set_title(f"{self.prefix}-{joints_str} - Multi-series FFT")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="upper right", frameon=False)
-        self._apply_limits(ax, xlim=xlim, ylim=ylim)
+        if xlim is not None:
+            self._apply_limits(ax, xlim=xlim)
+        if ylim is not None:
+            self._apply_limits(ax, ylim=ylim)
 
         default_name = (save_name or "{joints}_multi_fft.png").format(joints=joints_str)
         filename = add_prefix_to_filename(default_name, self.prefix)
-        save_path = self.out_dir / filename
+        save_path = Path(self.out_dir) / (filename or default_name)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(str(save_path))
         plt.close(fig)
         return save_path
 
     def _series_from_joint_spec(
-        self, spec: Union[int, str, Sequence[Union[int, str]]], component_idx: int
-    ) -> np.ndarray:
+        self, spec: int | str | Sequence[int | str], component_idx: int
+    ) -> np.ndarray[Any, Any]:
         """從關節規格取得時間序列。"""
         if isinstance(spec, (list, tuple, np.ndarray)):
             if not spec:
                 raise ValueError("joint group 不能是空的。")
-            idxs = [self.resolve_joint(j) for j in spec]
+            idxs = [self.resolve_joint(s) for s in spec]  # type: ignore[arg-type]
             arr_group = self.arr[:, idxs, component_idx]
             return np.mean(arr_group, axis=1)
-        idx = self.resolve_joint(spec)
+        idx = self.resolve_joint(spec)  # type: ignore[arg-type]
         return self.arr[:, idx, component_idx]
 
     @staticmethod
-    def _format_joint_spec(spec: Union[int, str, Sequence[Union[int, str]]]) -> str:
+    def _format_joint_spec(spec: int | str | Sequence[int | str]) -> str:
         """把關節規格轉成適合檔名的字串。"""
         if isinstance(spec, (list, tuple, np.ndarray)):
             return "_".join(str(x) for x in spec)
@@ -312,21 +321,21 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _select_peak_indices(
-        f: np.ndarray,
-        psd_db: np.ndarray,
+        f: np.ndarray[Any, Any],
+        psd_db: np.ndarray[Any, Any],
         *,
         max_peaks: int,
-        xlim: Optional[Tuple[float, float]],
+        xlim: tuple[float, float | None] | None,
         min_peak_distance_ratio: float,
         min_db: float,
         min_freq: float,
-    ) -> List[int]:
+    ) -> list[int]:
         """從 PSD 曲線中挑出要標註的 peak index。"""
         if max_peaks <= 0 or psd_db.size <= 2:
             return []
 
-        if xlim is not None:
-            f_min, f_max = xlim
+        if xlim is not None and xlim[1] is not None:
+            f_min, f_max = xlim[0], xlim[1]
         else:
             f_min, f_max = float(f.min()), float(f.max())
         f_span = max(f_max - f_min, 1e-9)
@@ -343,7 +352,7 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
         best_idx_global = int(idx_all[np.nanargmax(psd_db[idx_all])])
 
-        idx_candidates: List[int] = []
+        idx_candidates: list[int] = []
         for idx in idx_all:
             if idx == 0 or idx == psd_db.size - 1:
                 continue
@@ -357,7 +366,7 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
         order = np.argsort(psd_db[idx_candidates_arr])[::-1]
         idx_sorted = idx_candidates_arr[order]
 
-        chosen: List[int] = []
+        chosen: list[int] = []
         for idx in idx_sorted:
             if len(chosen) >= max_peaks:
                 break
@@ -368,23 +377,23 @@ class TimeFrequencyMixin(VisualizerUtilsMixin):
 
     def _annotate_fft_peaks(
         self,
-        ax: plt.Axes,
-        f: np.ndarray,
-        psd_db: np.ndarray,
-        peak_indices: List[int],
-        color: str,
-        xlim: Optional[Tuple[float, float]],
-        ylim: Optional[Tuple[float, float]],
+        ax: Axes,
+        f: np.ndarray[Any, Any],
+        psd_db: np.ndarray[Any, Any],
+        peak_indices: list[int],
+        color: Any,
+        xlim: tuple[float, float | None] | None,
+        ylim: tuple[float, float | None] | None,
     ) -> None:
         """標註 FFT 峰值。"""
-        if ylim is not None:
+        if ylim is not None and ylim[1] is not None:
             y_span = float(ylim[1] - ylim[0])
         else:
             y_span = float(np.nanmax(psd_db) - np.nanmin(psd_db) + 1e-6)
         dy = 0.04 * y_span
 
-        if xlim is not None:
-            f_min, f_max = xlim
+        if xlim is not None and xlim[1] is not None:
+            f_min, f_max = xlim[0], xlim[1]
         else:
             f_min, f_max = float(f.min()), float(f.max())
         f_span = max(f_max - f_min, 1e-9)

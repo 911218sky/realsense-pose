@@ -4,7 +4,7 @@
 X 軸為規一化進度，Y 軸為圈數，顏色為速度值。
 """
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,9 +37,9 @@ class SpeedHeatmapMixin(VisualizerUtilsMixin):
         *,
         width: int = 300,
         dpi: int = 150,
-        save_name: Optional[str] = None,
-        vmin: Optional[float] = None,
-        vmax: Optional[float] = None,
+        save_name: str | None = None,
+        vmin: float | None = None,
+        vmax: float | None = None,
     ) -> Path:
         """對每圈做索引重採樣後，畫出速度時空熱圖（每列一圈）。"""
         fps = float(self._estimate_fps())
@@ -62,7 +62,7 @@ class SpeedHeatmapMixin(VisualizerUtilsMixin):
         width = int(max(50, width))
 
         mat = np.full((num_laps, width), np.nan, dtype=float)
-        marks: List[Tuple[float, float]] = []
+        marks: list[tuple[float, float]] = []
 
         for row, lap in enumerate(laps):
             start_idx = int(lap.idx_onset_end)
@@ -112,7 +112,7 @@ class SpeedHeatmapMixin(VisualizerUtilsMixin):
         return save_path
 
     @staticmethod
-    def _resample_1d(arr: np.ndarray, i0: int, i1: int, m: int) -> np.ndarray:
+    def _resample_1d(arr: np.ndarray[Any, Any], i0: int, i1: int, m: int) -> np.ndarray[Any, Any]:
         """以索引為自變數，將 arr[i0:i1] 線性插值重採樣成 m 個點。"""
         i0 = max(0, int(i0))
         i1 = max(0, int(i1))

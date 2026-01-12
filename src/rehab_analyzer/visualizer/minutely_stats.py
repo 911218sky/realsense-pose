@@ -4,7 +4,7 @@
 以每圈開始時間所屬的分鐘為分箱，統計去程/迴轉/回程的平均耗時。
 """
 from pathlib import Path
-from typing import Optional, Tuple, List, Callable
+from typing import Any, List, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -38,13 +38,13 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
-        max_minutes: Optional[int] = None,
+        max_minutes: int | None = None,
         dpi: int = 170,
         figsize_per_minute: float = 0.75,
         bar_width: float = 0.22,
         group_gap: float = 0.06,
-        save_name: Optional[str] = None,
-        ylim: Optional[Tuple[float, float]] = None,
+        save_name: str | None = None,
+        ylim: tuple[float, float | None] = None,
     ) -> Path:
         """
         以每分鐘為單位繪製：
@@ -90,7 +90,7 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         # 依分鐘分桶
         bins = self._bin_by_minute(minute_idx, M, v_to, v_turn, v_ret)
 
-        def mean_or_nan(values: List[float]) -> float:
+        def mean_or_nan(values: list[float]) -> float:
             if not values:
                 return float("nan")
             return float(np.mean(np.asarray(values, dtype=float)))
@@ -127,11 +127,11 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
 
     def _bin_by_minute(
         self,
-        minute_idx: np.ndarray,
+        minute_idx: np.ndarray[Any, Any],
         M: int,
-        v_to: np.ndarray,
-        v_turn: np.ndarray,
-        v_ret: np.ndarray,
+        v_to: np.ndarray[Any, Any],
+        v_turn: np.ndarray[Any, Any],
+        v_ret: np.ndarray[Any, Any],
     ) -> dict:
         """依分鐘分桶。"""
         bins = {
@@ -151,7 +151,7 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
 
     def _create_minutely_figure(
         self, M: int, figsize_per_minute: float, dpi: int
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """創建每分鐘統計圖的 Figure。"""
         fig_width = max(7.0, float(M) * float(figsize_per_minute))
         fig_height = 4.2
@@ -160,10 +160,10 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
     def _draw_minutely_bars(
         self,
         ax: plt.Axes,
-        minutes: np.ndarray,
-        means_to: np.ndarray,
-        means_turn: np.ndarray,
-        means_ret: np.ndarray,
+        minutes: np.ndarray[Any, Any],
+        means_to: np.ndarray[Any, Any],
+        means_turn: np.ndarray[Any, Any],
+        means_ret: np.ndarray[Any, Any],
         bar_width: float,
         group_gap: float,
     ) -> Tuple:
@@ -184,9 +184,9 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
     def _style_minutely_axes(
         self,
         ax: plt.Axes,
-        minutes: np.ndarray,
-        counts: np.ndarray,
-        ylim: Optional[Tuple[float, float]],
+        minutes: np.ndarray[Any, Any],
+        counts: np.ndarray[Any, Any],
+        ylim: tuple[float, float | None],
     ) -> None:
         """設定軸樣式。"""
         ax.grid(True, axis="y", linestyle="--", alpha=0.25)
@@ -206,15 +206,15 @@ class MinutelyStageDurationBarsMixin(VisualizerUtilsMixin):
         bars_to,
         bars_turn,
         bars_ret,
-        means_to: np.ndarray,
-        means_turn: np.ndarray,
-        means_ret: np.ndarray,
+        means_to: np.ndarray[Any, Any],
+        means_turn: np.ndarray[Any, Any],
+        means_ret: np.ndarray[Any, Any],
     ) -> None:
         """在柱子上方標示數值。"""
         def annotate_bars(
             axis: plt.Axes,
             bar_container,
-            values: np.ndarray,
+            values: np.ndarray[Any, Any],
             fmt: Callable[[float], str],
         ) -> None:
             if not np.isfinite(values).any():

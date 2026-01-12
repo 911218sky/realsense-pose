@@ -4,7 +4,7 @@
 提供共用的輸出目錄、前綴名稱和軸顯示設定。
 """
 from pathlib import Path
-from typing import Optional, Tuple, Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from ..entities import XYZPair
 from ..rehab_analyzer import RehabilitationSessionAnalyzer
@@ -39,7 +39,7 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
         self,
         npy_path: str,
         out_dir: str,
-        prefix: Optional[str] = None,
+        prefix: str | None = None,
         axis_convention: str = "standard",
     ) -> None:
         super().__init__(npy_path)
@@ -82,7 +82,7 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
             mapping = ("X", "Y", "Z")
         return mapping[dim]
 
-    def _axis_labels_for_pair(self, pair: str) -> Tuple[str, str]:
+    def _axis_labels_for_pair(self, pair: str) -> tuple[str, str]:
         """
         依據 pair（例如 'xz', 'yz'）回傳 (dependent, independent) 軸的顯示文字。
 
@@ -106,8 +106,8 @@ class VisualizerCore(RehabilitationSessionAnalyzer):
         self,
         ax: "plt.Axes",
         *,
-        xlim: Optional[Tuple[float, float]] = None,
-        ylim: Optional[Tuple[float, float]] = None,
+        xlim: tuple[float, float | None] = None,
+        ylim: tuple[float, float | None] = None,
     ) -> None:
         """
         設定圖形座標軸範圍。

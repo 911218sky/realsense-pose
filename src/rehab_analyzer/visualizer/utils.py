@@ -20,7 +20,7 @@ def fmt_timestamp(t: float) -> str:
     return f"{minutes}:{seconds:05.2f}"
 
 
-def imread_rgb(path: str) -> np.ndarray:
+def imread_rgb(path: str) -> np.ndarray[Any, Any]:
     """使用 PIL 讀取影像並轉成 RGB uint8 numpy 陣列。"""
     from PIL import Image
 
@@ -28,7 +28,7 @@ def imread_rgb(path: str) -> np.ndarray:
     return np.asarray(img, dtype=np.uint8)
 
 
-def canvas_to_numpy_rgba(fig: "plt.Figure") -> np.ndarray:
+def canvas_to_numpy_rgba(fig: "plt.Figure") -> np.ndarray[Any, Any]:
     """
     將 Matplotlib Figure 轉成 RGBA uint8 numpy 陣列 (H, W, 4)。
 
@@ -71,11 +71,11 @@ class VisualizerUtilsMixin(VisualizerCore):
         """秒數格式化為 mm:ss.ss 文字。"""
         return fmt_timestamp(t)
 
-    def _imread_rgb(self, path: str) -> np.ndarray:
+    def _imread_rgb(self, path: str) -> np.ndarray[Any, Any]:
         """使用 PIL 讀取影像並轉成 RGB uint8 numpy 陣列。"""
         return imread_rgb(path)
 
-    def _pad_or_crop_even(self, img: np.ndarray, H: int, W: int) -> np.ndarray:
+    def _pad_or_crop_even(self, img: np.ndarray[Any, Any], H: int, W: int) -> np.ndarray[Any, Any]:
         """
         將影像補白或裁切到指定大小 (H, W)。
 
@@ -107,6 +107,6 @@ class VisualizerUtilsMixin(VisualizerCore):
 
         return img
 
-    def _canvas_to_numpy_rgba(self, fig: "plt.Figure") -> np.ndarray:
+    def _canvas_to_numpy_rgba(self, fig: "plt.Figure") -> np.ndarray[Any, Any]:
         """將 Matplotlib Figure 轉成 RGBA uint8 numpy 陣列 (H, W, 4)。"""
         return canvas_to_numpy_rgba(fig)

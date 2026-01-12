@@ -4,7 +4,7 @@
 繪製關節 Y 軸高度隨時間變化的曲線。
 """
 from pathlib import Path
-from typing import Optional, List, Tuple, Union
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,16 +27,16 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
 
     def save_y_height_diff(
         self,
-        left_joint: Union[int, str],
-        right_joint: Union[int, str],
-        labels: Optional[List[str]] = None,
+        left_joint: int | str,
+        right_joint: int | str,
+        labels: list[str | None] = None,
         *,
         smooth_window_s: float = DEFAULT_SMOOTH_WINDOW_S,
         draw_original: bool = True,
         dpi: int = 150,
-        figsize: Tuple[float, float] = (11.0, 4.0),
-        save_name: Optional[str] = None,
-        ylim: Optional[Tuple[float, float]] = None,
+        figsize: tuple[float, float] = (11.0, 4.0),
+        save_name: str | None = None,
+        ylim: tuple[float, float | None] = None,
     ) -> Path:
         """
         畫出單一曲線：「左腳高度 - 右腳高度」隨時間變化。
@@ -102,11 +102,11 @@ class HeightMultiSeriesPlotterMixin(VisualizerUtilsMixin):
 
     @staticmethod
     def _compute_tick_steps(
-        ylim: Optional[Tuple[float, float]],
-        left_plot: np.ndarray,
-        right_plot: np.ndarray,
-        diff_plot: np.ndarray,
-    ) -> Tuple[float, float]:
+        ylim: tuple[float, float | None],
+        left_plot: np.ndarray[Any, Any],
+        right_plot: np.ndarray[Any, Any],
+        diff_plot: np.ndarray[Any, Any],
+    ) -> tuple[float, float]:
         """計算 Y 軸刻度步長。"""
         if ylim is not None:
             y0, y1 = float(ylim[0]), float(ylim[1])

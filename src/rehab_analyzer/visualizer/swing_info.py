@@ -4,7 +4,7 @@
 包含 swing% 熱力圖和 stance/swing 時間柱狀圖。
 """
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,9 +36,9 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         *,
         dpi: int = 150,
         figsize_per_col: float = 0.9,
-        save_name: Optional[str] = None,
-        vmin_pct: Optional[float] = None,
-        vmax_pct: Optional[float] = None,
+        save_name: str | None = None,
+        vmin_pct: float | None = None,
+        vmax_pct: float | None = None,
     ) -> Path:
         """
         使用 compute_gait_summary().per_interval 製作 swing% 熱力圖，
@@ -114,16 +114,16 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
         flat_frac: float = DEFAULT_FLAT_FRAC,
         min_v_abs: float = DEFAULT_MIN_V_ABS,
         *,
-        max_minutes: Optional[int] = None,
+        max_minutes: int | None = None,
         dpi: int = 170,
         figsize_per_minute: float = 0.9,
         row_height: float = 3.1,
         bar_width: float = 0.28,
         group_gap: float = 0.18,
         capsize: float = 3.0,
-        save_name: Optional[str] = None,
-        stance_ylim: Optional[Tuple[float, float]] = None,
-        swing_ylim: Optional[Tuple[float, float]] = None,
+        save_name: str | None = None,
+        stance_ylim: tuple[float, float | None] = None,
+        swing_ylim: tuple[float, float | None] = None,
     ) -> Path:
         """
         使用 compute_gait_summary().per_interval 直接繪製：
@@ -218,7 +218,7 @@ class SwingInfoHeatmapMixin(VisualizerUtilsMixin):
     def _annotate_stance_swing_bars(
         axis: plt.Axes,
         bar_container,
-        values: np.ndarray,
+        values: np.ndarray[Any, Any],
     ) -> None:
         """在柱頂顯示秒數。"""
         if not np.isfinite(values).any():
