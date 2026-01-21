@@ -1,8 +1,9 @@
 """圈數偵測與路徑/速度序列工具。"""
 
 from functools import partial
+from numpy._typing._array_like import NDArray
 from operator import attrgetter
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 from cachetools import cachedmethod
@@ -199,6 +200,145 @@ class LapDetector(PoseProcessor):
 
         return lat, lat_smooth
 
+    def _compute_lap_direction(
+        self,
+        c2: np.ndarray,
+        chair_pos: np.ndarray,
+        cone_pos: np.ndarray,
+        idx_start: int,
+        idx_end: int,
+        turn_cone_dir: int,
+        turn_chair_dir: int,
+        delta_theta_cone_deg: float,
+        delta_theta_chair_deg: float,
+    ) -> str:
+        """
+        計算整圈的方向（順時針/逆時針）。
+        
+        判別邏輯：
+        1. 主要依據錐區和椅區的轉身方向
+        2. 輔助使用整圈的角度變化
+        3. 考慮椅子到錐子的向量方向
+        
+        Parameters
+        ----------
+        c2 : np.ndarray
+            2D 軌跡點
+        chair_pos : np.ndarray
+            椅子位置
+        cone_pos : np.ndarray
+            錐子位置
+        idx_start : int
+            圈開始索引
+        idx_end : int
+            圈結束索引
+        turn_cone_dir : int
+            錐區轉身方向
+        turn_chair_dir : int
+            椅區轉身方向
+        delta_theta_cone_deg : float
+            錐區角度變化
+        delta_theta_chair_deg : float
+            椅區角度變化
+            
+        Returns
+        -------
+        str
+            "clockwise", "counterclockwise", 或 "unknown"
+        """
+        # 方法1：基於轉身方向判別
+        # 在標準的順時針圈中：
+        # - 錐區轉身通常是順時針（+1）
+        # - 椅區轉身通常是順時針（+1）
+        # 在逆時針圈中則相反
+        
+        direction_votes = []
+        
+        # 投票1：錐區轉身方向
+        if abs(delta_theta_cone_deg) > 30:  # 只有在顯著轉身時才考慮
+            if turn_cone_dir > 0:
+                direction_votes.append("clockwise")
+            elif turn_cone_dir < 0:
+                direction_votes.append("counterclockwise")
+        
+        # 投票2：椅區轉身方向
+        if abs(delta_theta_chair_deg) > 30:  # 只有在顯著轉身時才考慮
+            if turn_chair_dir > 0:
+                direction_votes.append("clockwise")
+            elif turn_chair_dir < 0:
+                direction_votes.append("counterclockwise")
+        
+        # 基於軌跡的幾何分析
+        # 計算從椅子到錐子的向量，以及軌跡相對於這個向量的偏移
+        if idx_end > idx_start + 10:  # 確保有足夠的軌跡點
+            chair_to_cone: NDArray[Any] = cone_pos - chair_pos
+            chair_to_cone_norm = np.linalg.norm(chair_to_cone)
+            
+            if chair_to_cone_norm > 1e-6:
+                # 建立局部座標系：椅子到錐子為 x 軸
+                ex = chair_to_cone / chair_to_cone_norm
+                ey = np.array([-ex[1], ex[0]])  # 垂直向量
+                
+                # 計算軌跡在局部座標系中的位置
+                traj_segment = c2[idx_start:idx_end+1]
+                rel_pos = traj_segment - chair_pos[None, :]
+                
+                # 投影到垂直軸（y軸）
+                y_coords = rel_pos @ ey
+                
+                # 分析軌跡的偏移模式
+                # 順時針：從椅子出發時向右偏移（y > 0），回來時向左偏移（y < 0）
+                # 逆時針：從椅子出發時向左偏移（y < 0），回來時向右偏移（y > 0）
+                mid_point = len(y_coords) // 2
+                outbound_y = np.mean(y_coords[:mid_point])
+                return_y = np.mean(y_coords[mid_point:])
+                
+                # 判別邏輯：如果出發時偏右，回來時偏左，則為順時針
+                if outbound_y > 0.05 and return_y < -0.05:
+                    direction_votes.append("clockwise")
+                elif outbound_y < -0.05 and return_y > 0.05:
+                    direction_votes.append("counterclockwise")
+        
+        # 統計投票結果
+        if not direction_votes:
+            return "unknown"
+        
+        clockwise_votes = direction_votes.count("clockwise")
+        counterclockwise_votes = direction_votes.count("counterclockwise")
+        
+        if clockwise_votes > counterclockwise_votes:
+            return "clockwise"
+        elif counterclockwise_votes > clockwise_votes:
+            return "counterclockwise"
+        else:
+            # 使用整圈的總角度變化
+            # 計算整圈的總角度變化（錐區 + 椅區）
+            total_delta = delta_theta_cone_deg + delta_theta_chair_deg
+            
+            # 如果總角度變化顯著，使用其符號判斷方向
+            if abs(total_delta) > 60:  # 總角度變化超過 60 度才可靠
+                if total_delta > 0:
+                    return "clockwise"
+                else:
+                    return "counterclockwise"
+            
+            # 如果總角度變化也不顯著，使用較大的單區角度變化
+            if abs(delta_theta_cone_deg) > abs(delta_theta_chair_deg):
+                # 錐區角度變化較大，使用錐區方向
+                if turn_cone_dir > 0:
+                    return "clockwise"
+                elif turn_cone_dir < 0:
+                    return "counterclockwise"
+            else:
+                # 椅區角度變化較大，使用椅區方向
+                if turn_chair_dir > 0:
+                    return "clockwise"
+                elif turn_chair_dir < 0:
+                    return "counterclockwise"
+            
+            # 最後的 fallback：如果所有方法都無法判斷，返回 unknown
+            return "unknown"
+
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "detect_laps_auto"))
     def detect_laps_auto(
         self,
@@ -214,8 +354,11 @@ class LapDetector(PoseProcessor):
         min_turn_width_s: float = DEFAULT_MIN_TURN_WIDTH_S,
         rC: Optional[Tuple[float, float]] = None,
         rK: Optional[Tuple[float, float]] = None,
+        detect_direction: bool = True,
     ) -> DetectLapsResult:
         """自動偵測圈數（離椅→錐→回椅且坐下）。
+
+        使用 PoseProcessor 處理 bag 檔案時生成的錨點配置。
 
         Parameters
         ----------
@@ -240,16 +383,18 @@ class LapDetector(PoseProcessor):
         min_turn_width_s : float
             轉彎區段至少要持續的秒數
         rC : Optional[Tuple[float, float]]
-            指定椅子區域進/出半徑 (r_enter, r_exit)
+            指定椅子區域進/出半徑 (r_enter, r_exit)，覆蓋配置中的值
         rK : Optional[Tuple[float, float]]
-            指定錐區進/出半徑 (r_enter, r_exit)
+            指定錐區進/出半徑 (r_enter, r_exit)，覆蓋配置中的值
+        detect_direction : bool
+            是否計算圈數方向（順時針/逆時針），預設為 True
 
         Returns
         -------
         DetectLapsResult
             偵測結果，包含圈數列表與區域參數
         """
-        # 便利函式：把 frame index 轉成時間秒數
+        # 把 frame index 轉成時間秒數
         def ts_at(i: int) -> float:
             return float(self.t[i])
 
@@ -261,7 +406,7 @@ class LapDetector(PoseProcessor):
         ydiff_window = max(1, int(round(ydiff_window_s * fps)))
         min_width_frames = max(1, int(round(min_turn_width_s * fps)))
 
-        l2, r2, valid = self._compute_hip_points(
+        l2, r2, _ = self._compute_hip_points(
             projection=projection,
             smooth_window=smooth_window,
         )
@@ -272,22 +417,24 @@ class LapDetector(PoseProcessor):
         # 利用同一投影的髖點計算解包後骨盆朝向
         theta = self.compute_pelvis_heading_unwrapped(L2=l2, R2=r2)
 
-        pos_a, pos_b, D = self._infer_anchors(c2, valid)
-
+        # 使用已儲存的錨點配置
+        chair_pos = np.array(self.anchor_config.chair_pos, dtype=float)
+        cone_pos = np.array(self.anchor_config.cone_pos, dtype=float)
+        
+        # 使用配置中的半徑，或使用參數覆蓋
+        if rC is not None and rC[0] > 0.0:
+            rC_in, rC_out = float(rC[0]), float(rC[1])
+        else:
+            rC_in, rC_out = self.anchor_config.chair_radius
+        
+        if rK is not None and rK[0] > 0.0:
+            rK_in, rK_out = float(rK[0]), float(rK[1])
+        else:
+            rK_in, rK_out = self.anchor_config.cone_radius
+        
+        # 計算 Y 高度（用於判斷站起、坐下）
         xyz = self.arr[:, :33, :]
         y = (xyz[:, self.L_HIP, 1] + xyz[:, self.R_HIP, 1]) / 2.0
-
-        chair_pos, cone_pos, (rC_in, rC_out), (rK_in, rK_out) = self._auto_zones(
-            c2,
-            pos_a,
-            pos_b,
-            y,
-            ydiff_window=ydiff_window,
-            sit_pos_thr=sit_pos_thr,
-            base_margin_m=max(0.03, 0.05 * max(D, 0.5)),
-            rC=rC,
-            rK=rK,
-        )
 
         dist_chair = np.linalg.norm(c2 - chair_pos, axis=1)
         dist_cone = np.linalg.norm(c2 - cone_pos, axis=1)
@@ -368,11 +515,13 @@ class LapDetector(PoseProcessor):
             )
             cone_valid = conv >= cone_n
 
-        chair_and_sit = near_chair & (yprime >= sit_pos_thr)
-        chair_sit_idx = np.where(chair_and_sit)[0]
+        # 坐下動作：在椅區且 y' <= -sit_pos_thr（身體下降）
+        chair_sitdown_mask = near_chair & (yprime <= -sit_pos_thr)
+        chair_sitdown_idx = np.where(chair_sitdown_mask)[0]
 
-        onset_mask = near_chair & (yprime <= -sit_pos_thr)
-        onset_candidates = np.where(onset_mask)[0]
+        # 起身動作：在椅區且 y' >= sit_pos_thr（身體上升）
+        standup_mask = near_chair & (yprime >= sit_pos_thr)
+        standup_candidates = np.where(standup_mask)[0]
 
         laps_list: List[Lap] = []
 
@@ -383,50 +532,57 @@ class LapDetector(PoseProcessor):
                 continue
             t_cone = ls + idx[0]
 
-            # 起身段（離椅）
-            j = np.searchsorted(onset_candidates, ls, side="left") - 1
-            if j >= onset_candidates.size or j < 0:
+            # 起身段（離椅前的身體上升動作）
+            # 找離開椅區前最近的起身動作
+            j = np.searchsorted(standup_candidates, ls, side="left") - 1
+            if j >= standup_candidates.size or j < 0:
+                continue
+            
+            # 確保這個起身動作是在離開椅區之前，且時間上合理（不超過 45 秒）
+            standup_idx = standup_candidates[j]
+            if standup_idx >= ls or (ls - standup_idx) > 45 * fps:
                 continue
 
             j_start = j
             while ((j_start - 1) >= 0) and (
-                (onset_candidates[j_start] - onset_candidates[j_start - 1]) <= group_gap_frames
+                (standup_candidates[j_start] - standup_candidates[j_start - 1]) <= group_gap_frames
             ):
                 j_start -= 1
-            onset_start_idx = int(onset_candidates[j_start])
-
+            onset_start_idx = int(standup_candidates[j_start])
+            
             j_end = j
-            while ((j_end + 1) < onset_candidates.size) and (
-                (onset_candidates[j_end + 1] - onset_candidates[j_end]) <= group_gap_frames
+            while ((j_end + 1) < standup_candidates.size) and (
+                (standup_candidates[j_end + 1] - standup_candidates[j_end]) <= group_gap_frames
             ):
                 j_end += 1
-            onset_end_idx = int(onset_candidates[j_end])
+            onset_end_idx = int(standup_candidates[j_end])
 
             # ---------- 回到椅區 + 坐下 ----------
-            j = np.searchsorted(chair_sit_idx, t_cone, side="left")
-            if j >= chair_sit_idx.size or j < 0:
+            # 找回到椅區後的坐下動作（身體下降）
+            j = np.searchsorted(chair_sitdown_idx, t_cone, side="left")
+            if j >= chair_sitdown_idx.size or j < 0:
                 continue
 
             j_end = j
-            while ((j_end + 1) < chair_sit_idx.size) and (
-                (chair_sit_idx[j_end + 1] - chair_sit_idx[j_end]) <= group_gap_frames
+            while ((j_end + 1) < chair_sitdown_idx.size) and (
+                (chair_sitdown_idx[j_end + 1] - chair_sitdown_idx[j_end]) <= group_gap_frames
             ):
                 j_end += 1
-            chair_sit_end_idx = int(chair_sit_idx[j_end])
+            chair_sit_end_idx = int(chair_sitdown_idx[j_end])
 
             j_start = j
             while ((j_start - 1) >= 0) and (
-                (chair_sit_idx[j_start] - chair_sit_idx[j_start - 1]) <= group_gap_frames
+                (chair_sitdown_idx[j_start] - chair_sitdown_idx[j_start - 1]) <= group_gap_frames
             ):
                 j_start -= 1
-            chair_sit_start_idx = int(chair_sit_idx[j_start])
+            chair_sit_start_idx = int(chair_sitdown_idx[j_start])
 
-            # 延伸坐下結束點，直到 y' 接近 0
-            while (chair_sit_end_idx < N - 1) and (yprime[chair_sit_end_idx] > sit_pos_thr * 0.8):
+            # 延伸坐下結束點，直到 y' 接近 0（身體下降動作結束）
+            while (chair_sit_end_idx < N - 1) and (yprime[chair_sit_end_idx] < -sit_pos_thr * 0.5):
                 chair_sit_end_idx += 1
 
             # 起身開始點往前找，確保往下動作開始被包含
-            while (chair_sit_start_idx > 0) and (yprime[chair_sit_start_idx] > -sit_pos_thr * 1.2):
+            while (chair_sit_start_idx > 0) and (yprime[chair_sit_start_idx] > -sit_pos_thr * 0.5):
                 chair_sit_start_idx -= 1
 
             # cone zone 連續 True 片段
@@ -452,10 +608,10 @@ class LapDetector(PoseProcessor):
 
             # B：椅子附近轉身（用骨盆角度斜率）
             reenter_idx = int(le)
-            j = np.searchsorted(chair_sit_idx, reenter_idx, side="left")
-            if j >= chair_sit_idx.size or j < 0:
+            j = np.searchsorted(chair_sitdown_idx, reenter_idx, side="left")
+            if j >= chair_sitdown_idx.size or j < 0:
                 continue
-            sit_start_idx = int(chair_sit_idx[j])
+            sit_start_idx = int(chair_sitdown_idx[j])
 
             turn_chair_start_idx, turn_chair_end_idx, slope_chair = detect_turn_window_by_heading(
                 theta=theta,
@@ -518,49 +674,78 @@ class LapDetector(PoseProcessor):
                 dist_chair_cone_centers_m = float(
                     np.linalg.norm(cone_pos - chair_pos)
                 )
-                laps_list.append(
-                    Lap(
-                        ts_start=float(ts_start),
-                        ts_end=float(ts_end),
-                        dur_total=float(dur_total),
-                        idx_start=int(onset_start_idx),
-                        idx_end=int(chair_sit_end_idx),
-                        idx_onset_start=int(onset_start_idx),
-                        idx_onset_end=int(onset_end_idx),
-                        idx_chair_sit_end=int(chair_sit_end_idx),
-                        idx_chair_sit_start=int(chair_sit_start_idx),
-                        idx_leave_chair=int(onset_end_idx),
-                        idx_reenter_chair=int(reenter_idx),
-                        idx_enter_cone=int(cone_entry_idx),
-                        idx_exit_cone=int(cone_exit_idx),
-                        idx_sit_start=int(sit_start_idx),
-                        idx_turn_cone_start=int(turn_cone_start_idx),
-                        idx_turn_cone_end=int(turn_cone_end_idx),
-                        idx_turn_chair_start=int(turn_chair_start_idx),
-                        idx_turn_chair_end=int(turn_chair_end_idx),
-                        dur_stand=float(dur_stand),
-                        dur_to_cone=float(dur_to_cone),
-                        dur_cone_turn=float(dur_cone_turn),
-                        dur_return=float(dur_return),
-                        dur_turn_to_sit=float(dur_turn_to_sit),
-                        dur_sit=float(dur_sit),
-                        ts_turn_cone_start=float(ts_turn_cone_start),
-                        ts_turn_cone_end=float(ts_turn_cone_end),
-                        ts_turn_chair_start=float(ts_turn_chair_start),
-                        ts_turn_chair_end=float(ts_turn_chair_end),
-                        dist_cone_turn_chord_m=float(dist_cone_turn_chord_m),
-                        dist_cone_turn_path_m=float(dist_cone_turn_path_m),
-                        dist_outbound_m=float(dist_outbound_m),
-                        dist_return_m=float(dist_return_m),
-                        dist_lap_path_m=float(dist_lap_path_m),
-                        dist_turn_to_sit_m=float(dist_turn_to_sit_m),
-                        dist_chair_cone_centers_m=float(
-                            dist_chair_cone_centers_m
-                        ),
+                
+                # 計算圈數方向
+                if detect_direction:
+                    lap_direction = self._compute_lap_direction(
+                        c2=c2,
+                        chair_pos=chair_pos,
+                        cone_pos=cone_pos,
+                        idx_start=onset_start_idx,
+                        idx_end=chair_sit_end_idx,
                         turn_cone_dir=dir_cone,
                         turn_chair_dir=dir_chair,
                         delta_theta_cone_deg=delta_cone,
                         delta_theta_chair_deg=delta_chair,
+                    )
+                else:
+                    lap_direction = "unknown"
+                
+                laps_list.append(
+                    Lap(
+                        # ===== 時間戳記 (秒) =====
+                        ts_start=float(ts_start),           # 圈開始時間（起身動作開始）
+                        ts_end=float(ts_end),               # 圈結束時間（坐下動作結束）
+                        dur_total=float(dur_total),         # 整圈總耗時 (秒)
+
+                        # ===== 幀索引 (frame index) =====
+                        idx_start=int(onset_start_idx),         # 圈開始幀（= idx_onset_start）
+                        idx_end=int(chair_sit_end_idx),         # 圈結束幀（= idx_chair_sit_end）
+                        idx_onset_start=int(onset_start_idx),   # 起身動作開始幀
+                        idx_onset_end=int(onset_end_idx),       # 起身動作結束幀（離開椅區）
+                        idx_chair_sit_end=int(chair_sit_end_idx),   # 坐下動作結束幀
+                        idx_chair_sit_start=int(chair_sit_start_idx), # 坐下動作開始幀
+                        idx_leave_chair=int(onset_end_idx),     # 離開椅區幀（= idx_onset_end）
+                        idx_reenter_chair=int(reenter_idx),     # 重新進入椅區幀
+                        idx_enter_cone=int(cone_entry_idx),     # 進入錐區幀
+                        idx_exit_cone=int(cone_exit_idx),       # 離開錐區幀
+                        idx_sit_start=int(sit_start_idx),       # 開始坐下幀
+                        idx_turn_cone_start=int(turn_cone_start_idx),   # 錐區轉身開始幀
+                        idx_turn_cone_end=int(turn_cone_end_idx),       # 錐區轉身結束幀
+                        idx_turn_chair_start=int(turn_chair_start_idx), # 椅區轉身開始幀
+                        idx_turn_chair_end=int(turn_chair_end_idx),     # 椅區轉身結束幀
+
+                        # ===== 各階段耗時 (秒) =====
+                        dur_stand=float(dur_stand),         # 起身階段耗時（從開始起身到離開椅區）
+                        dur_to_cone=float(dur_to_cone),     # 去程耗時（從離開椅區到進入錐區）
+                        dur_cone_turn=float(dur_cone_turn), # 錐區轉身耗時
+                        dur_return=float(dur_return),       # 回程耗時（從離開錐區到重新進入椅區）
+                        dur_turn_to_sit=float(dur_turn_to_sit), # 椅區轉身耗時
+                        dur_sit=float(dur_sit),             # 坐下階段耗時
+
+                        # ===== 轉身時間戳記 (秒) =====
+                        ts_turn_cone_start=float(ts_turn_cone_start),   # 錐區轉身開始時間
+                        ts_turn_cone_end=float(ts_turn_cone_end),       # 錐區轉身結束時間
+                        ts_turn_chair_start=float(ts_turn_chair_start), # 椅區轉身開始時間
+                        ts_turn_chair_end=float(ts_turn_chair_end),     # 椅區轉身結束時間
+
+                        # ===== 距離 (公尺) =====
+                        dist_cone_turn_chord_m=float(dist_cone_turn_chord_m), # 錐區轉身弦長（起點到終點直線距離）
+                        dist_cone_turn_path_m=float(dist_cone_turn_path_m),   # 錐區轉身路徑長（實際走過的距離）
+                        dist_outbound_m=float(dist_outbound_m),   # 去程距離（椅區到錐區轉身開始）
+                        dist_return_m=float(dist_return_m),       # 回程距離（錐區轉身結束到椅區轉身開始）
+                        dist_lap_path_m=float(dist_lap_path_m),   # 整圈總路徑長度 (去程+錐區轉身+回程+椅區轉身)
+                        dist_turn_to_sit_m=float(dist_turn_to_sit_m), # 椅區轉身距離
+                        dist_chair_cone_centers_m=float(
+                            dist_chair_cone_centers_m               # 椅子中心到錐子中心的直線距離
+                        ),
+
+                        # ===== 轉身方向與角度 =====
+                        turn_cone_dir=dir_cone,             # 錐區轉身方向 (+1=順時針, -1=逆時針, 0=未知)
+                        turn_chair_dir=dir_chair,           # 椅區轉身方向 (+1=順時針, -1=逆時針, 0=未知)
+                        delta_theta_cone_deg=delta_cone,    # 錐區轉身角度變化 (度)
+                        delta_theta_chair_deg=delta_chair,  # 椅區轉身角度變化 (度)
+                        lap_direction=lap_direction,        # 整圈方向 ("clockwise"/"counterclockwise"/"unknown")
                     )
                 )
 

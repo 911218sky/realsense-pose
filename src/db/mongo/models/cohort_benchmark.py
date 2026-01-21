@@ -86,6 +86,45 @@ class TurnBenchmarkEmbed(BaseModel):
     )
 
 
+class UserMetricsEmbed(BaseModel):
+    """使用者級別指標嵌入文件。
+    
+    儲存單一使用者在各指標上的統計值（中位數），
+    用於計算使用者在族群中的百分位排名。
+    """
+    user_code: str = Field(..., description="使用者代碼")
+    session_count: int = Field(default=0, ge=0, description="該使用者的 session 數量")
+    lap_count: int = Field(default=0, ge=0, description="該使用者的圈數")
+    
+    # 圈數時間指標（使用者的中位數）
+    dur_total_p50: Optional[float] = Field(None, description="每圈總時間中位數")
+    dur_stand_p50: Optional[float] = Field(None, description="起身時間中位數")
+    dur_to_cone_p50: Optional[float] = Field(None, description="走向錐子時間中位數")
+    dur_cone_turn_p50: Optional[float] = Field(None, description="錐子轉身時間中位數")
+    dur_return_p50: Optional[float] = Field(None, description="返回時間中位數")
+    dur_turn_to_sit_p50: Optional[float] = Field(None, description="對位轉身時間中位數")
+    dur_sit_p50: Optional[float] = Field(None, description="坐下時間中位數")
+    
+    # 步態指標（使用者的中位數）
+    spm_p50: Optional[float] = Field(None, description="步頻中位數")
+    mean_step_len_p50: Optional[float] = Field(None, description="平均步長中位數")
+    l_swing_pct_p50: Optional[float] = Field(None, description="左腳擺動期百分比中位數")
+    r_swing_pct_p50: Optional[float] = Field(None, description="右腳擺動期百分比中位數")
+    l_stance_s_p50: Optional[float] = Field(None, description="左腳支撐期時間中位數")
+    r_stance_s_p50: Optional[float] = Field(None, description="右腳支撐期時間中位數")
+    
+    # 速度距離指標（使用者的中位數）
+    speed_mps_p50: Optional[float] = Field(None, description="行走速度中位數")
+    dist_lap_path_m_p50: Optional[float] = Field(None, description="每圈總距離中位數")
+    dist_outbound_m_p50: Optional[float] = Field(None, description="去程距離中位數")
+    dist_return_m_p50: Optional[float] = Field(None, description="回程距離中位數")
+    dist_cone_turn_m_p50: Optional[float] = Field(None, description="錐子轉身路徑中位數")
+    
+    # 轉向指標（使用者的中位數）
+    delta_theta_cone_deg_p50: Optional[float] = Field(None, description="錐子轉身角度中位數")
+    delta_theta_chair_deg_p50: Optional[float] = Field(None, description="椅子轉身角度中位數")
+
+
 class CohortBenchmark(Document):
     """族群基準值文件。
     
@@ -107,6 +146,12 @@ class CohortBenchmark(Document):
     gait: Optional[GaitBenchmarkEmbed] = Field(None, description="步態基準")
     speed_distance: Optional[SpeedDistanceBenchmarkEmbed] = Field(None, description="速度距離基準")
     turn: Optional[TurnBenchmarkEmbed] = Field(None, description="轉向基準")
+    
+    # 使用者級別數據（用於計算使用者在族群中的排名）
+    user_metrics: List[UserMetricsEmbed] = Field(
+        default_factory=list,
+        description="各使用者的指標統計值，用於計算百分位排名"
+    )
     
     # 計算狀態
     status: str = Field(

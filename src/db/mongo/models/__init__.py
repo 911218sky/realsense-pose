@@ -14,6 +14,7 @@ from .cohort_benchmark import (
     PercentileStatsEmbed,
     SpeedDistanceBenchmarkEmbed,
     TurnBenchmarkEmbed,
+    UserMetricsEmbed,
 )
 from .realsense_extract_job import RealsenseExtractJob
 from .realsense_pose_extractor import RealsensePoseExtractor
@@ -47,4 +48,5 @@ __all__ = [
     "PercentileStatsEmbed",
     "SpeedDistanceBenchmarkEmbed",
     "TurnBenchmarkEmbed",
+    "UserMetricsEmbed",
 ]

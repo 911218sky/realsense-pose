@@ -6,19 +6,7 @@ pyrealsense2 在同一進程內反覆處理多個 .bag 容易資源洩漏或卡�
 """
 
 import multiprocessing as mp
-import sys
-from pathlib import Path
-
-# 確保 src 在 sys.path，子進程才能 import 專案模組
-_SRC_DIR = Path(__file__).resolve().parent.parent
-if str(_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_SRC_DIR))
-
-
 from typing import Any
-
-import multiprocessing as mp
-
 
 def _worker(
     bag_file_path: str,
@@ -28,6 +16,17 @@ def _worker(
 ) -> None:
     """子進程 worker，執行完畢後透過 queue 回傳結果。"""
     try:
+        # 確保子進程也有正確的 sys.path
+        import sys
+        from pathlib import Path
+        _SRC_DIR = Path(__file__).resolve().parent.parent
+        if str(_SRC_DIR) not in sys.path:
+            sys.path.insert(0, str(_SRC_DIR))
+        
+        # 使用工具函數確保 src 在 path 中
+        from utils import ensure_src_in_path
+        ensure_src_in_path()
+        
         # import 放在子進程內，避免與父進程共享狀態
         from realsense_pose_extractor import PoseProcessor
 
@@ -38,7 +37,6 @@ def _worker(
             height=process_bag_kwargs.get("height", None),
             fps=process_bag_kwargs.get("fps", None),
         )
-        # 子進程已隔離，不需要全域鎖或長延遲
         processor.process_bag(
             output_npy_filename=output_npy_path,
             pre_pipeline_delay_s=0.1,
@@ -48,10 +46,8 @@ def _worker(
         result_queue.put({"success": True, "error": None})
     except Exception as e:
         import traceback
+        print(traceback.format_exc())
         result_queue.put({"success": False, "error": f"{e}\n{traceback.format_exc()}"})
-
-
-from typing import Any
 
 
 def run_process_bag_in_subprocess(

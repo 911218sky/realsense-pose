@@ -6,11 +6,26 @@
 """
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import numpy as np
+
+from config import load_config
+
+# 載入預設配置
+_default_config = load_config(mode="pose")
+
+def _get_default_chair_radius() -> Tuple[float, float]:
+    """從配置文件獲取椅子半徑預設值。"""
+    radius = _default_config.get("chair_radius", [1.5, 1.7])
+    return tuple(radius)
+
+def _get_default_cone_radius() -> Tuple[float, float]:
+    """從配置文件獲取錐桶半徑預設值。"""
+    radius = _default_config.get("cone_radius", [1.5, 1.7])
+    return tuple(radius)
 
 @dataclass
 class AnchorConfig:
@@ -21,16 +36,12 @@ class AnchorConfig:
         cone_pos: 錐子位置 (x, z)
         chair_radius: 椅子區域半徑 (enter, exit)
         cone_radius: 錐子區域半徑 (enter, exit)
-        confidence: 偵測信心度 (0.0-1.0)
-        metadata: 額外的元資料
     """
     chair_pos: Tuple[float, float] = (0.0, 0.0)
     cone_pos: Tuple[float, float] = (0.0, 0.0)
-    chair_radius: Tuple[float, float] = (0.5, 0.7)
-    cone_radius: Tuple[float, float] = (0.5, 0.7)
-    confidence: float = 0.0
-    metadata: dict = field(default_factory=dict)
-    
+    chair_radius: Tuple[float, float] = field(default_factory=_get_default_chair_radius)
+    cone_radius: Tuple[float, float] = field(default_factory=_get_default_cone_radius)
+
     def to_dict(self) -> dict:
         """轉換為字典格式。"""
         return asdict(self)
@@ -41,10 +52,8 @@ class AnchorConfig:
         return cls(
             chair_pos=tuple(data.get("chair_pos", (0.0, 0.0))),
             cone_pos=tuple(data.get("cone_pos", (0.0, 0.0))),
-            chair_radius=tuple(data.get("chair_radius", (0.5, 0.7))),
-            cone_radius=tuple(data.get("cone_radius", (0.5, 0.7))),
-            confidence=data.get("confidence", 0.0),
-            metadata=data.get("metadata", {}),
+            chair_radius=tuple(data.get("chair_radius", _get_default_chair_radius())),
+            cone_radius=tuple(data.get("cone_radius", _get_default_cone_radius())),
         )
 
 
@@ -71,7 +80,6 @@ def load_anchor_config(npy_path: Path | str) -> Optional[AnchorConfig]:
                 with open(config_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 config = AnchorConfig.from_dict(data)
-                config.metadata["config_path"] = str(config_path)
                 return config
             except Exception:
                 continue
@@ -166,134 +174,100 @@ class AnchorDetectorMixin:
     @staticmethod
     def _estimate_chair_cone_from_trajectory(
         trajectory: np.ndarray,
-    ) -> Tuple[Tuple[float, float], Tuple[float, float], float]:
-        """從軌跡推算椅子和錐子位置，並計算信心度。
+    ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """從軌跡推算椅子和錐子位置。
         
         使用 Y 高度變化識別椅子（坐下時 Y 變化大）。
         錐子位置使用轉彎區域的中心點（使用者繞過錐子的位置）。
         
         Returns:
-            (chair_pos, cone_pos, confidence)
-            confidence: 0.0-1.0，基於多個指標計算
+            (chair_pos, cone_pos)
         """
-        traj_2d = trajectory[:, [0, 2]] if trajectory.shape[1] == 3 else trajectory
-        y_height = trajectory[:, 1] if trajectory.shape[1] == 3 else None
+        # 提取 2D 軌跡 (X, Z) 和 Y 高度
+        traj_2d = trajectory[:, [0, 2]]
+        y_height = trajectory[:, 1]
         
-        n_points = len(traj_2d)
-        
-        # PCA 找主軸方向
+        # 使用 PCA 找出軌跡主軸方向
         centered = traj_2d - np.mean(traj_2d, axis=0)
-        _, S, Vt = np.linalg.svd(centered, full_matrices=False)
-        proj = centered @ Vt[0]
+        _, _, Vt = np.linalg.svd(centered, full_matrices=False)
+        proj = centered @ Vt[0]  # 投影到主軸
         
-        # 計算 PCA 解釋變異比例（第一主成分）
-        explained_variance_ratio = S[0]**2 / np.sum(S**2) if len(S) > 0 else 0.0
-        
-        # 找出軌跡的兩個極端區域（椅子端和錐子端）
+        # 找出軌跡兩端（椅子端和錐子端）
         p5, p95 = np.percentile(proj, [5, 95])
-        mask_chair_end = proj >= p95 - 0.1  # 椅子端（較大的投影值）
-        mask_cone_end = proj <= p5 + 0.1    # 錐子端（較小的投影值）
+        mask_high_end = proj >= p95 - 0.1  # 高投影值端
+        mask_low_end = proj <= p5 + 0.1    # 低投影值端
         
-        chair_end_center = np.mean(traj_2d[mask_chair_end], axis=0)
-        cone_end_center = np.mean(traj_2d[mask_cone_end], axis=0)
+        high_end_center = np.mean(traj_2d[mask_high_end], axis=0)
+        low_end_center = np.mean(traj_2d[mask_low_end], axis=0)
         
-        # 計算 X 軸對齊度（兩端點 X 軸偏移）
-        x_offset = abs(chair_end_center[0] - cone_end_center[0])
-        z_distance = abs(chair_end_center[1] - cone_end_center[1])
-        alignment_score = 1.0 - min(x_offset / max(z_distance, 0.1), 1.0)
+        # 判斷哪一端是椅子（使用 Y 高度變化）
+        # 計算兩端的 Y 高度標準差
+        y_std_high = np.std(y_height[mask_high_end])
+        y_std_low = np.std(y_height[mask_low_end])
         
-        # 用 Y 高度變化判斷椅子端
-        chair_detection_confidence = 0.5  # 預設中等信心
-        chair_is_high_proj = True  # 預設椅子在高投影值端
-        
-        if y_height is not None:
-            y_std_chair = np.std(y_height[mask_chair_end]) if np.sum(mask_chair_end) > 1 else 0
-            y_std_cone = np.std(y_height[mask_cone_end]) if np.sum(mask_cone_end) > 1 else 0
-            
-            # Y 高度差異比例越大，信心度越高
-            y_ratio = max(y_std_chair, y_std_cone) / (min(y_std_chair, y_std_cone) + 1e-6)
-            chair_detection_confidence = min(y_ratio / 2.0, 1.0)  # 比例 2.0 以上為滿分
-            
-            if y_std_chair > y_std_cone * 1.2:
-                # 高投影值端的 Y 變化大 → 椅子在高投影值端
-                chair_is_high_proj = True
-            elif y_std_cone > y_std_chair * 1.2:
-                # 低投影值端的 Y 變化大 → 椅子在低投影值端
-                chair_is_high_proj = False
-            else:
-                # Y 高度差異不明顯，用軌跡起點/終點判斷
-                start_pos = np.mean(traj_2d[:10], axis=0)
-                end_pos = np.mean(traj_2d[-10:], axis=0)
-                
-                # 椅子端：起點和終點都應該接近
-                dist_chair_to_start = np.linalg.norm(chair_end_center - start_pos)
-                dist_chair_to_end = np.linalg.norm(chair_end_center - end_pos)
-                dist_cone_to_start = np.linalg.norm(cone_end_center - start_pos)
-                dist_cone_to_end = np.linalg.norm(cone_end_center - end_pos)
-                
-                max_dist_chair = max(dist_chair_to_start, dist_chair_to_end)
-                max_dist_cone = max(dist_cone_to_start, dist_cone_to_end)
-                
-                # 選擇距離起點和終點都較近的那一端作為椅子
-                chair_is_high_proj = max_dist_chair < max_dist_cone
-                chair_detection_confidence *= 0.8  # 稍微降低信心度
+        # Y 變化大的那一端是椅子（因為坐下起立會有高度變化）
+        if y_std_high > y_std_low * 1.2:
+            chair_is_high_end = True
+        elif y_std_low > y_std_high * 1.2:
+            chair_is_high_end = False
         else:
-            # 沒有 Y 高度資訊，用軌跡起點/終點判斷
+            # Y 高度差異不明顯，用起點/終點判斷
+            # 椅子端應該同時接近起點和終點
             start_pos = np.mean(traj_2d[:10], axis=0)
             end_pos = np.mean(traj_2d[-10:], axis=0)
             
-            dist_chair_to_start = np.linalg.norm(chair_end_center - start_pos)
-            dist_chair_to_end = np.linalg.norm(chair_end_center - end_pos)
-            dist_cone_to_start = np.linalg.norm(cone_end_center - start_pos)
-            dist_cone_to_end = np.linalg.norm(cone_end_center - end_pos)
+            dist_high_max = max(
+                np.linalg.norm(high_end_center - start_pos),
+                np.linalg.norm(high_end_center - end_pos)
+            )
+            dist_low_max = max(
+                np.linalg.norm(low_end_center - start_pos),
+                np.linalg.norm(low_end_center - end_pos)
+            )
             
-            max_dist_chair = max(dist_chair_to_start, dist_chair_to_end)
-            max_dist_cone = max(dist_cone_to_start, dist_cone_to_end)
-            
-            chair_is_high_proj = max_dist_chair < max_dist_cone
-            chair_detection_confidence = 0.7  # 沒有 Y 資訊，信心度較低
+            chair_is_high_end = dist_high_max < dist_low_max
         
-        # 確定椅子位置
-        if chair_is_high_proj:
-            chair_pos = tuple(chair_end_center)
-            cone_region_mask = proj <= p5 + 0.5  # 錐子端的轉彎區域（擴大範圍）
+        # 確定椅子位置和錐子區域
+        if chair_is_high_end:
+            chair_pos = tuple(high_end_center)
+            cone_region_mask = proj <= p5 + 0.6  # 錐子在低投影值端
         else:
-            chair_pos = tuple(cone_end_center)
-            cone_region_mask = proj >= p95 - 0.5  # 錐子端的轉彎區域（擴大範圍）
+            chair_pos = tuple(low_end_center)
+            cone_region_mask = proj >= p95 - 0.6  # 錐子在高投影值端
         
-        # 關鍵修正：錐子位置應該是轉彎區域的中心點
-        # 使用者會繞過錐子，所以錐子應該在轉彎區域的中心，而不是端點
+        # 計算錐子位置（轉彎區域的中心）
         cone_region_points = traj_2d[cone_region_mask]
+        
         if len(cone_region_points) > 10:
-            # 直接使用整個轉彎區域的中位數作為錐子位置
-            # 中位數比平均值更穩定，不受極端值影響
-            cone_pos = tuple(np.median(cone_region_points, axis=0))
+            # 找到 Z 值的 80 百分位（轉彎開始位置）
+            z_values = cone_region_points[:, 1]
+            z_target = np.percentile(z_values, 80)
+            
+            # 選取 Z 值接近目標的點（±0.2m）
+            near_target_mask = np.abs(z_values - z_target) < 0.2
+            near_target_points = cone_region_points[near_target_mask]
+            
+            if len(near_target_points) > 5:
+                # 使用修剪平均值（移除極端值後計算平均）
+                x_values = near_target_points[:, 0]
+                z_values = near_target_points[:, 1]
+                
+                # 移除最極端的 20% 點（左右各 10%）
+                x_sorted_idx = np.argsort(x_values)
+                trim_count = max(1, len(x_values) // 10)
+                trimmed_idx = x_sorted_idx[trim_count:-trim_count]
+                
+                cone_x = np.mean(x_values[trimmed_idx])
+                cone_z = np.mean(z_values[trimmed_idx])
+                cone_pos = (float(cone_x), float(cone_z))
+            else:
+                # 使用整個錐子區域的平均值
+                cone_pos = tuple(np.mean(cone_region_points, axis=0))
         else:
-            # 備用方案：使用另一端的中心
-            cone_pos = tuple(cone_end_center)
+            # 使用另一端的中心
+            cone_pos = tuple(low_end_center if chair_is_high_end else high_end_center)
         
-        # 綜合信心度計算
-        # 1. 軌跡點數量分數（300 幀以上為滿分）
-        point_score = min(n_points / 300.0, 1.0)
-        
-        # 2. PCA 解釋變異比例（0.9 以上為滿分）
-        pca_score = min(explained_variance_ratio / 0.9, 1.0)
-        
-        # 3. X 軸對齊分數
-        # alignment_score 已經是 0-1
-        
-        # 4. 椅子偵測信心度
-        # chair_detection_confidence 已經是 0-1
-        
-        # 加權平均
-        confidence = (
-            point_score * 0.15 +           # 15% 權重
-            pca_score * 0.35 +             # 35% 權重（最重要）
-            alignment_score * 0.20 +       # 20% 權重
-            chair_detection_confidence * 0.30  # 30% 權重
-        )
-        
-        return chair_pos, cone_pos, float(confidence)
+        return chair_pos, cone_pos
     
     
     def _save_anchor_config(

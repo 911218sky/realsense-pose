@@ -220,9 +220,14 @@ async def run_extraction_pipeline(
         height=cfg.get("height", None),
         fps=cfg.get("fps", None),
         # 輸出選項
+        # 保存 npy 檔案
         save_npy=True,
         save_pickle=False,
+        # 保存影片
         save_video=save_video,
+        # 保存預測出來的 anchors
+        detect_anchors=True,
+        save_anchors=True,
     )
 
     # 保存 npy 和 bag 檔案路徑到 DB

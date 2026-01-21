@@ -130,8 +130,8 @@ app = FastAPI(
 app.add_middleware(PayloadDecodeMiddleware)
 
 # Minimal public endpoints (helpful for load balancers / smoke tests)
-@app.get("/", include_in_schema=False)
-async def root() -> dict | FileResponse:
+@app.get("/", include_in_schema=False, response_model=None)
+async def root():
     if SERVE_WEB and WEB_INDEX.is_file():
         return FileResponse(WEB_INDEX)
     return {

@@ -45,25 +45,17 @@ def test_generate_anchors_from_npy() -> None:
         hip_center = (arr[:, 23, :] + arr[:, 24, :]) / 2
         
         # 估算錨點
-        chair_pos, cone_pos, confidence = AnchorDetectorMixin._estimate_chair_cone_from_trajectory(hip_center)
+        chair_pos, cone_pos = AnchorDetectorMixin._estimate_chair_cone_from_trajectory(hip_center)
         
         print(f"  軌跡估算結果:")
         print(f"    椅子: ({chair_pos[0]:.2f}, {chair_pos[1]:.2f})")
         print(f"    錐子: ({cone_pos[0]:.2f}, {cone_pos[1]:.2f})")
-        print(f"    信心度: {confidence:.3f}")
         
         # 建立並儲存配置
+        # AnchorConfig 會自動從 default_pose.yaml 讀取 chair_radius 和 cone_radius
         config = AnchorConfig(
             chair_pos=chair_pos,
             cone_pos=cone_pos,
-            chair_radius=(0.5, 0.7),
-            cone_radius=(0.5, 0.7),
-            confidence=confidence,
-            metadata={
-                "method": "pca_trajectory",
-                "description": "Estimated from walking trajectory using PCA",
-                "n_frames": len(arr),
-            }
         )
         
         config_path = save_anchor_config(npy_file, config, save_mode="alongside")
@@ -99,9 +91,6 @@ def test_config_save_load() -> None:
         print(f"  已載入配置:")
         print(f"    椅子: {loaded_config.chair_pos}")
         print(f"    錐子: {loaded_config.cone_pos}")
-        print(f"    信心度: {loaded_config.confidence:.3f}")
-        if loaded_config.metadata:
-            print(f"    元資料: {loaded_config.metadata}")
     else:
         print(f"  未找到配置檔案")
 

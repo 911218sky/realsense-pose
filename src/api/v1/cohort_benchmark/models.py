@@ -86,6 +86,14 @@ class CompareRequest(BaseModel):
     """個人與基準比對請求。"""
     session_name: str = Field(..., min_length=1, description="session 名稱")
     cohort_name: str = Field(..., min_length=1, description="要比對的族群名稱")
+    user_percentile: int = Field(
+        default=50, ge=0, le=100,
+        description="使用者的第幾百分位數（預設 50，即中位數）"
+    )
+    cohort_percentile: int = Field(
+        default=50, ge=0, le=100,
+        description="要比較的族群第幾百分位數（預設 50，即中位數）"
+    )
 
 
 class GetBenchmarkRequest(BaseModel):
@@ -158,52 +166,26 @@ class CalculateStatusResponse(BaseModel):
 # 比對結果模型
 # ============================================================================
 
-class PercentileDiff(BaseModel):
-    """各百分位的差異比較。
-    
-    diff_pct 計算公式：(user - benchmark) / benchmark * 100
-    正值表示使用者高於族群，負值表示低於族群。
-    
-    percentile_position 表示該數值在族群中的百分位位置（0-100）。
-    """
-    p10_diff_pct: float = Field(..., description="P10 差異百分比")
-    p25_diff_pct: float = Field(..., description="P25 差異百分比")
-    p50_diff_pct: float = Field(..., description="P50 差異百分比（中位數比較）")
-    p75_diff_pct: float = Field(..., description="P75 差異百分比")
-    p90_diff_pct: float = Field(..., description="P90 差異百分比")
-    mean_diff_pct: float = Field(..., description="平均值差異百分比")
-    p10_percentile_position: float = Field(..., ge=0, le=100, description="使用者 P10 在族群中的百分位位置")
-    p25_percentile_position: float = Field(..., ge=0, le=100, description="使用者 P25 在族群中的百分位位置")
-    p50_percentile_position: float = Field(..., ge=0, le=100, description="使用者 P50 在族群中的百分位位置")
-    p75_percentile_position: float = Field(..., ge=0, le=100, description="使用者 P75 在族群中的百分位位置")
-    p90_percentile_position: float = Field(..., ge=0, le=100, description="使用者 P90 在族群中的百分位位置")
-    mean_percentile_position: float = Field(..., ge=0, le=100, description="使用者平均值在族群中的百分位位置")
-
-
 class MetricComparison(BaseModel):
-    """單一指標比對結果。"""
-    user_p10: float = Field(..., description="個人 P10")
-    user_p25: float = Field(..., description="個人 P25")
-    user_p50: float = Field(..., description="個人 P50（中位數）")
-    user_p75: float = Field(..., description="個人 P75")
-    user_p90: float = Field(..., description="個人 P90")
-    user_mean: float = Field(..., description="個人平均值")
-    user_count: int = Field(..., ge=0, description="個人樣本數（圈數）")
-    benchmark_p10: float = Field(..., description="族群 P10")
-    benchmark_p25: float = Field(..., description="族群 P25")
-    benchmark_p50: float = Field(..., description="族群 P50（中位數）")
-    benchmark_p75: float = Field(..., description="族群 P75")
-    benchmark_p90: float = Field(..., description="族群 P90")
-    benchmark_mean: float = Field(..., description="族群平均值")
-    benchmark_count: int = Field(..., ge=0, description="族群樣本數")
-    percentile_position: float = Field(
-        ..., ge=0, le=100, description="個人 P50 在族群中的百分位位置（0-100）"
+    """單一指標比對結果（簡化版）。
+    
+    前端只需關注：
+    - diff_pct: 正數表示比族群高，負數表示比族群低
+    - is_better: 這個差異對使用者是好是壞
+    """
+    user_value: float = Field(..., description="使用者數值")
+    cohort_value: float = Field(..., description="族群基準值")
+    diff_pct: float = Field(
+        ..., 
+        description="差異百分比：正數=比族群高，負數=比族群低"
     )
-    in_normal_range: bool = Field(..., description="個人 P50 是否在族群正常範圍（P25-P75）內")
-    status: Literal["below_normal", "normal", "above_normal"] = Field(
-        ..., description="狀態：低於正常、正常、高於正常"
+    is_better: bool = Field(
+        ..., 
+        description="這個差異對使用者是否有利（考慮指標方向）"
     )
-    diff: PercentileDiff = Field(..., description="各百分位的差異百分比")
+    status: Literal["worse", "similar", "better"] = Field(
+        ..., description="狀態：worse=較差, similar=相近, better=較好"
+    )
 
 
 class LapTimeComparison(BaseModel):
@@ -242,6 +224,61 @@ class TurnComparison(BaseModel):
     delta_theta_chair_deg: MetricComparison
 
 
+# ============================================================================
+# 功能評估模型（基於 TUG 測試論文標準值）
+# ============================================================================
+
+class FunctionalMetric(BaseModel):
+    """功能評估單一指標。"""
+    user_value: float = Field(..., description="使用者數值")
+    reference_value: float = Field(..., description="論文參考標準值（健康成人）")
+    cohort_value: Optional[float] = Field(None, description="族群基準值（若有）")
+    diff_from_reference_pct: float = Field(..., description="與參考值的差異百分比")
+    higher_is_better: bool = Field(..., description="該指標是否越高越好")
+    radar_score: float = Field(
+        ..., ge=0, le=100,
+        description="雷達圖分數（0-100），統一為越高越好"
+    )
+
+
+class EnduranceAssessment(BaseModel):
+    """體能評估（Endurance）。
+    
+    基於論文：健康成人 6 分鐘步行距離約 239m
+    指標：走向角錐時間 + 走回椅子時間
+    """
+    walk_to_cone_s: FunctionalMetric = Field(..., description="走向角錐時間（秒），參考值 2.264s")
+    walk_back_and_sit_s: FunctionalMetric = Field(..., description="走回+轉身坐下時間（秒），參考值 2.283s")
+    total_walking_s: FunctionalMetric = Field(..., description="總行走時間（秒）")
+
+
+class BalanceAssessment(BaseModel):
+    """平衡能力評估（Balance）。
+    
+    基於論文：三角錐轉身時間約 1.354 秒
+    """
+    cone_turn_s: FunctionalMetric = Field(..., description="三角錐轉身時間（秒），參考值 1.354s")
+
+
+class MuscleEnduranceAssessment(BaseModel):
+    """肌耐力評估（Muscle Endurance）。
+    
+    基於論文：站起時間約 0.945 秒，走回+轉身坐下約 2.283 秒
+    """
+    stand_up_s: FunctionalMetric = Field(..., description="站起時間（秒），參考值 0.945s")
+    return_and_sit_s: FunctionalMetric = Field(..., description="走回+轉身坐下時間（秒），參考值 2.283s")
+
+
+class FunctionalAssessment(BaseModel):
+    """功能評估總覽。
+    
+    基於 TUG 測試論文的健康成人標準值進行比較。
+    """
+    endurance: EnduranceAssessment = Field(..., description="體能評估")
+    balance: BalanceAssessment = Field(..., description="平衡能力評估")
+    muscle_endurance: MuscleEnduranceAssessment = Field(..., description="肌耐力評估")
+
+
 class ComparisonResult(BaseModel):
     """個人與基準比對結果。"""
     session_name: str = Field(..., description="session 名稱")
@@ -249,7 +286,12 @@ class ComparisonResult(BaseModel):
     cohort_name: str = Field(..., description="比對的族群名稱")
     compared_at: datetime = Field(..., description="比對時間")
     lap_count: int = Field(..., ge=0, description="個人圈數")
+    # 自訂百分位參數
+    user_percentile: int = Field(default=50, description="使用者選擇的百分位數")
+    cohort_percentile: int = Field(default=50, description="族群選擇的百分位數")
     lap_time: Optional[LapTimeComparison] = Field(None, description="圈數時間比對")
     gait: Optional[GaitComparison] = Field(None, description="步態比對")
     speed_distance: Optional[SpeedDistanceComparison] = Field(None, description="速度距離比對")
     turn: Optional[TurnComparison] = Field(None, description="轉向比對")
+    # 功能評估（基於論文標準值）
+    functional: Optional[FunctionalAssessment] = Field(None, description="功能評估（體能/平衡/肌耐力）")
