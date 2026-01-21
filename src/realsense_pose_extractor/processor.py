@@ -6,20 +6,20 @@ import time
 from collections import deque
 from logging import Logger
 from pathlib import Path
-from typing import Any, Any, Optional
+from typing import Any, Optional
 
 import cv2
 import mediapipe as mp
 import numpy as np
 
-from logger import setup_logger
 from utils.npy_calibration import CalibrationConfig, PoseNpyCalibrator
+from logger import setup_logger
 
 from .bag_io import BagIOMixin, OutputMixin
 from .pipeline import TimeTrackingMixin, PipelineMixin
 from .pose_ops import PoseOpsMixin
 from .video_overlay import VideoOverlayMixin, FFmpegConverter
-
+from .anchor_detector import AnchorDetectorMixin, AnchorConfig
 
 class PoseProcessor(
     BagIOMixin,
@@ -28,6 +28,7 @@ class PoseProcessor(
     PipelineMixin,
     PoseOpsMixin,
     VideoOverlayMixin,
+    AnchorDetectorMixin,
 ):
     """從 RealSense bag 檔提取人體姿態並轉換為 3D 座標。"""
 
@@ -73,6 +74,9 @@ class PoseProcessor(
         self._first_frame_number = None
         self._processed_frames = 0
         
+        # 初始化錨點偵測
+        self._init_anchor_detection()
+        
     def process_bag(
         self,
         progress_interval: int = 1000,
@@ -94,6 +98,8 @@ class PoseProcessor(
         max_depth_m: Optional[float] = 8.0,
         pre_pipeline_delay_s: float = 0.5,
         post_pipeline_delay_s: float = 1.0,
+        detect_anchors: bool = True,
+        save_anchors: bool = True,
         **kwargs: Any,
     ) -> np.ndarray:
         """
@@ -118,6 +124,8 @@ class PoseProcessor(
             max_depth_m: 最大有效深度（公尺）
             pre_pipeline_delay_s: pipeline 初始化前延遲（秒）
             post_pipeline_delay_s: pipeline 關閉後延遲（秒）
+            detect_anchors: 是否偵測錨點（椅子/錐子位置）
+            save_anchors: 是否儲存錨點配置檔
 
         Returns:
             shape (N, 34, 3) 的姿態座標 array
@@ -352,6 +360,27 @@ class PoseProcessor(
                         pickle.dump(out_arr, f)
                     self.logger.info(f"Results saved to: {pickle_path}")
 
+            # 偵測並儲存錨點配置（使用軌跡估算）
+            if detect_anchors and save_npy:                
+                # 使用軌跡估算錨點位置
+                hip_center = (out_arr[:, 23, :] + out_arr[:, 24, :]) / 2
+                chair_pos, cone_pos = self._estimate_chair_cone_from_trajectory(hip_center)
+                
+                # AnchorConfig 會自動從 default_pose.yaml 讀取 chair_radius 和 cone_radius
+                anchor_config = AnchorConfig(
+                    chair_pos=chair_pos,
+                    cone_pos=cone_pos,
+                )
+                
+                self.logger.info(
+                    f"[Anchor] Trajectory estimation: "
+                    f"chair=({chair_pos[0]:.2f}, {chair_pos[1]:.2f}), "
+                    f"cone=({cone_pos[0]:.2f}, {cone_pos[1]:.2f}), "
+                )
+                
+                if save_anchors:
+                    self._save_anchor_config(npy_path, anchor_config)
+
             return out_arr
         finally:
             # 釋放 VideoWriter
@@ -415,6 +444,7 @@ class PoseProcessor(
             if post_pipeline_delay_s and post_pipeline_delay_s > 0:
                 time.sleep(float(post_pipeline_delay_s))
 
+
 if __name__ == "__main__":
     bag_file_path = "dataset/4_1_1208.bag"
     output_dir = "outputs"
@@ -429,6 +459,8 @@ if __name__ == "__main__":
         save_npy=True,
         save_pickle=False,
         save_video=True,
+        detect_anchors=True,
+        save_anchors=True,
         output_video_filename="{filename}_overlay.mp4",
         # MediaPipe 參數
         model_complexity=0,

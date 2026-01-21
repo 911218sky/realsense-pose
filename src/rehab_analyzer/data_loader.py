@@ -5,12 +5,14 @@ from pathlib import Path
 import numpy as np
 from cachetools import TTLCache
 
+from realsense_pose_extractor.anchor_detector import AnchorConfig, load_anchor_config
 
 class DataLoader:
     """載入姿態 npy 檔並建立共用屬性的基底類別。
     
     這是整個分析流程的起點，負責把 npy 檔讀進來，
     並把時間戳記、關節索引等常用資訊準備好。
+    同時載入對應的錨點配置（如果存在）。
     """
 
     # MediaPipe Pose 的關節索引（33 個關節點）
@@ -33,8 +35,12 @@ class DataLoader:
             self.arr[:, 33, 2].astype(float) if self.arr.shape[1] >= 34 else None
         )
         assert self.t is not None, "npy 缺少時間戳記"
+        
+        # 載入錨點配置（如果存在）
+        anchor_config: AnchorConfig | None = load_anchor_config(self.npy_path)
+        assert anchor_config is None or "錨點配置檔案格式錯誤"
+        self.anchor_config: AnchorConfig = anchor_config
 
     def __repr__(self) -> str:
-        return f"<DataLoader npy={self.npy_path!s} n_frames={self.arr.shape[0]}>"
-
-
+        anchor_status = "with anchors" if self.anchor_config else "no anchors"
+        return f"<DataLoader npy={self.npy_path!s} n_frames={self.arr.shape[0]} {anchor_status}>"

@@ -119,8 +119,8 @@ async def get_cohort_users(
 
     根據族群名稱列表查詢使用者，支援聯集或交集查詢。
 
-    - **cohort_names**: 族群名稱列表
-    - **intersection**: True=取交集（同時屬於所有族群），False=取聯集（屬於任一族群）
+    - cohort_names: 族群名稱列表
+    - intersection: True=取交集（同時屬於所有族群），False=取聯集（屬於任一族群）
     """
     try:
         users = await cohort_benchmark_service.get_cohort_users(
@@ -155,8 +155,21 @@ async def calculate_benchmark(
             cohort_name=request.cohort_name,
             force_recalculate=request.force_recalculate,
         )
-        # 計算基準值後，需要更新族群使用者數量
+        
+        # 檢查是否有實際數據
+        if benchmark.lap_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Benchmark for cohort '{request.cohort_name}' completed but has no valid data "
+                    f"(user_count={benchmark.user_count}, session_count={benchmark.session_count}, lap_count={benchmark.lap_count}). "
+                    "Please ensure the cohort has users with valid sessions."
+                ),
+            )
+        
         return _convert_benchmark_to_response(benchmark)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to calculate benchmark for {request.cohort_name}: {e}")
         raise HTTPException(status_code=500, detail=f"計算基準值失敗: {e}")
@@ -255,13 +268,20 @@ async def compare_user_to_benchmark(
 
     將 session 的數據與族群基準值進行比對，計算各指標的百分位統計並比較。
 
-    - **session_name**: session 名稱
-    - **cohort_name**: 要比對的族群名稱
+    session_name: session 名稱
+    cohort_name: 要比對的族群名稱
+    user_percentile: 使用者要比較的百分位數（預設 50，即中位數）
+    cohort_percentile: 族群要比較的百分位數（預設 50，即中位數）
+    
+    例如：user_percentile=70, cohort_percentile=40 表示
+    「拿使用者的 P70 去比較族群的 P40」
     """
     try:
         result = await cohort_benchmark_service.compare_user_to_benchmark(
             session_name=request.session_name,
             cohort_name=request.cohort_name,
+            user_percentile=request.user_percentile,
+            cohort_percentile=request.cohort_percentile,
         )
         return result
     except ValueError as e:

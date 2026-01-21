@@ -14,6 +14,8 @@ from .swing_info import SwingInfoHeatmapMixin
 from .lateral_offset import LateralOffsetPlotterMixin
 from .time_frequency import TimeFrequencyMixin
 from .height_series import HeightMultiSeriesPlotterMixin
+from .gait_variability import GaitVariabilityMixin
+from .trend_charts import TrendChartsMixin
 
 
 class RehabSummaryVisualizer(
@@ -26,6 +28,8 @@ class RehabSummaryVisualizer(
     LateralOffsetPlotterMixin,
     TimeFrequencyMixin,
     HeightMultiSeriesPlotterMixin,
+    GaitVariabilityMixin,
+    TrendChartsMixin,
 ):
     """
     對外使用的入口類別：

@@ -17,6 +17,7 @@ __all__ = [
     "FootStepCycle",
     "IntervalGaitMetrics",
     "GaitSummary",
+    "GaitCyclePhases",
     "LapPhaseTimes",
     "SitStandEvent",
     "XYZPair",
@@ -81,6 +82,9 @@ class Lap:
     turn_chair_dir: int             # 椅邊轉身方向：+1 / -1 / 0，定義同上
     delta_theta_cone_deg: float     # 錐內轉身窗口 θ 的淨變化量（end-start，單位：度）
     delta_theta_chair_deg: float    # 椅邊轉身窗口 θ 的淨變化量（end-start，單位：度）
+    
+    # 整圈方向判別
+    lap_direction: str              # 整圈方向："clockwise"（順時針）、"counterclockwise"（逆時針）、"unknown"（無法判別）
 
     def to_dict(self) -> dict:
         """轉為可 JSON 序列化的 dict（numpy 以外的型別）。"""
@@ -149,7 +153,7 @@ class FootStepCycle:
     stride_s: float        # 一步的總時間（hs0→hs1）
     stance_s: float        # 支撐期（hs0→to）
     swing_s: float         # 擺動期（to→hs1）
-    swing_pct: float       # 擺動期百分比（100 * swing_s / (stride_s + swing_s)；已裁至 0~100）
+    swing_pct: float       # 擺動期百分比（100 * swing_s / stride_s；已裁至 0~100）
 
     def to_dict(self) -> dict:
         """轉為可 JSON 序列化的 dict。"""
@@ -221,6 +225,10 @@ class GaitSummary:
     # 各時間區間（例如每分鐘）的彙整
     per_interval: List[IntervalGaitMetrics] = field(default_factory=list)  # 每個 interval 的統計列表
     
+    # 詳細的步態週期數據（用於可視化）
+    left_cycles: List[FootStepCycle] = field(default_factory=list)  # 左腳步態週期
+    right_cycles: List[FootStepCycle] = field(default_factory=list)  # 右腳步態週期
+    
     def to_dict(self) -> dict:
         """轉為可 JSON 序列化的 dict。"""
         return asdict(self)
@@ -266,6 +274,34 @@ class SitStandEvent:
     def to_dict(self) -> dict:
         """轉為可 JSON 序列化的 dict。"""
         return asdict(self)
+
+@dataclass
+class GaitCyclePhases:
+    """
+    單側完整步態週期的相位百分比。
+    
+    完整步態週期（以右腳為例）：
+    RHS -> DS1 -> LTO -> SS -> LHS -> DS2 -> RTO -> Swing -> RHS
+    
+    其中：
+    - DS1: 初始雙支撐期（兩腳同時著地）
+    - SS: 單支撐期（主側腳支撐，對側腳擺動）
+    - DS2: 終末雙支撐期（兩腳同時著地）
+    - Swing: 擺動期（主側腳離地）
+    """
+    side: str                    # 'L' 或 'R'
+    ds1_pct: float               # 初始雙支撐期百分比
+    single_support_pct: float    # 單支撐期百分比
+    ds2_pct: float               # 終末雙支撐期百分比
+    swing_pct: float             # 擺動期百分比
+    stance_pct: float            # 總支撐期百分比 (ds1 + ss + ds2)
+    avg_cycle_time_s: float      # 平均步態週期時間（秒）
+    n_cycles: int                # 用於計算平均的有效週期數
+    
+    def to_dict(self) -> dict:
+        """轉為可 JSON 序列化的 dict。"""
+        return asdict(self)
+
 
 @dataclass
 class XYZPair:

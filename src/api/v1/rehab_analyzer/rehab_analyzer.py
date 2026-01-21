@@ -24,6 +24,10 @@ from api.v1.rehab_analyzer.models import (
     TrajectoryPayloadResponse,
     SwingInfoHeatmapRequest,
     SwingInfoHeatmapResponse,
+    MinutelyTrendRequest,
+    MinutelyTrendResponse,
+    GaitCyclePhasesRequest,
+    GaitCyclePhasesResponse,
 )
 from api.v1.rehab_analyzer.utils import resolve_session_npy_path, select_peak_indices
 from config import load_config
@@ -102,10 +106,11 @@ async def stage_durations(
                 "ts_end": float(lap.ts_end),
                 "total_duration_s": float(lap.dur_total), 
                 "total_distance_m": float(lap.dist_lap_path_m),
+                "lap_direction": str(lap.lap_direction),
                 "stage_durations": stages,
             }
         )
-
+        
     result = {"laps": laps_payload}
 
     return result
@@ -153,7 +158,7 @@ async def per_lap_offset(
         chair_pos = np.array(det.chair_pos, dtype=float)
         cone_pos = np.array(det.cone_pos, dtype=float)
         lat_raw_all, lat_smooth_all = analyzer._lateral_offset_series(
-            C2=c2,
+            c2=c2,
             chair_pos=np.array(chair_pos),
             cone_pos=np.array(cone_pos),
             k_smooth=config.k_smooth,
@@ -206,6 +211,7 @@ async def per_lap_offset(
         laps_payload.append(
             {
                 "lap_index": lap_idx,
+                "lap_direction": str(lap.lap_direction),
                 # 時間與訊號（compact: float32+zlib+b64）
                 "time_s_f32_zlib_b64": pack_1d_f32_zlib_b64(t_rel),
                 "lat_raw_f32_zlib_b64": pack_1d_f32_zlib_b64(lat_raw_rel),
@@ -240,6 +246,9 @@ async def minutely_cadence_step_length_bars(
     session_name: str,
     config: Optional[MinutelyCadenceStepLengthBarsRequest] = Body(None),
 ) -> MinutelyCadenceStepLengthBarsResponse:
+    """
+    回傳每分鐘步頻（cadence）與步長（step length）的長條圖資料。
+    """
     
     config = config or MinutelyCadenceStepLengthBarsRequest()
 
@@ -406,6 +415,7 @@ async def speed_heatmap(
             marks.append(
                 {
                     "lap_index": row + 1,
+                    "lap_direction": str(lap.lap_direction),
                     "cone_start_frac": float(a),
                     "cone_end_frac": float(b),
                     "chair_start_frac": float(c),
@@ -486,6 +496,77 @@ async def swing_info_heatmap(
         "minutes": list(range(1, L + 1)),
         "swing_pct": H_pct,
         "swing_s": H_sec,
+    }
+
+
+@router.post("/minutely_trend", response_model=MinutelyTrendResponse)
+@redis_cache(expire=30)
+async def minutely_trend(
+    session_name: str,
+    config: Optional[MinutelyTrendRequest] = Body(None),
+) -> MinutelyTrendResponse:
+    """
+    回傳每分鐘速度與圈數趨勢資料，供前端自行渲染趨勢圖。
+    
+    包含：
+    - 每分鐘平均速度
+    - 每分鐘完成圈數
+    - 每分鐘包含的圈數索引列表
+    """
+    config = config or MinutelyTrendRequest()
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        det = analyzer.detect_laps_auto(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+            flat_frac=config.flat_frac,
+            min_v_abs=config.min_v_abs,
+        )
+        laps = det.laps
+        if not laps:
+            raise ValueError("沒有圈數可視覺化（laps 為空）。")
+
+        t0 = float(laps[0].ts_start)
+        last_t = float(laps[-1].ts_end)
+        total_minutes = max(1, int(np.ceil((last_t - t0) / 60.0)))
+        
+        # 限制輸出分鐘數
+        if config.max_minutes is not None:
+            total_minutes = min(total_minutes, max(1, int(config.max_minutes)))
+        
+        # 統計每分鐘數據
+        minute_speeds: list[list[float]] = [[] for _ in range(total_minutes)]
+        minute_lap_counts: list[int] = [0] * total_minutes
+        minute_lap_indices: list[list[int]] = [[] for _ in range(total_minutes)]
+        
+        for lap_idx, lap in enumerate(laps, start=1):
+            m = min(int((lap.ts_start - t0) / 60.0), total_minutes - 1)
+            m = max(0, m)
+            if lap.dur_total > 0 and lap.dist_lap_path_m > 0:
+                minute_speeds[m].append(lap.dist_lap_path_m / lap.dur_total)
+            minute_lap_counts[m] += 1
+            minute_lap_indices[m].append(lap_idx)
+        
+        avg_speeds = [
+            float(np.mean(s)) if s else None 
+            for s in minute_speeds
+        ]
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"minutely_trend analysis failed: {e}",
+        )
+    
+    return {
+        "minutes": list(range(1, total_minutes + 1)),
+        "avg_speeds": avg_speeds,
+        "lap_counts": minute_lap_counts,
+        "lap_details": minute_lap_indices,
     }
 
 
@@ -820,8 +901,34 @@ async def trajectory_payload(
         chair_u16 = _quantize_u16(np.asarray(chair_pos, dtype=float)[None, :])[0]
         cone_u16 = _quantize_u16(np.asarray(cone_pos, dtype=float)[None, :])[0]
 
+        # 計算軌跡寬度的輔助函數
+        def _calc_trajectory_width(
+            c2_lap: np.ndarray,
+            chair: np.ndarray,
+            cone: np.ndarray,
+        ) -> float:
+            """計算單圈軌跡寬度（垂直於椅-錐連線的最大偏移範圍）。"""
+            if c2_lap.shape[0] < 2:
+                return 0.0
+            # 椅-錐連線方向向量
+            direction = cone - chair
+            dir_len = float(np.linalg.norm(direction))
+            if dir_len < 1e-9:
+                return 0.0
+            direction = direction / dir_len
+            # 垂直方向（法向量）
+            normal = np.array([-direction[1], direction[0]])
+            # 計算每個點相對於椅子的偏移
+            offsets = c2_lap - chair
+            # 投影到法向量上得到橫向偏移
+            lateral = np.dot(offsets, normal)
+            # 軌跡寬度 = 最大偏移 - 最小偏移
+            return float(np.max(lateral) - np.min(lateral))
+
         # 圈段/轉身 marker 索引 k
         laps_payload = []
+        lap_widths: list[float] = []
+        
         for lap_i, lap in enumerate(det.laps, start=1):
             start_f = int(lap.idx_start)
             end_f = int(lap.idx_end)
@@ -837,9 +944,18 @@ async def trajectory_payload(
                     payload_start_k = k0
                     payload_end_k = k1
 
+            # 計算此圈的軌跡寬度（使用原始座標，非量化後的）
+            lap_width: Optional[float] = None
+            if start_f < end_f and start_f >= 0 and end_f < num_frames:
+                c2_lap = c2[start_f:end_f + 1]
+                if c2_lap.shape[0] >= 2:
+                    lap_width = _calc_trajectory_width(c2_lap, chair_pos, cone_pos)
+                    lap_widths.append(lap_width)
+
             laps_payload.append(
                 {
                     "lap_index": int(lap_i),
+                    "lap_direction": str(lap.lap_direction),
                     "payload_start_k": payload_start_k,
                     "payload_end_k": payload_end_k,
                     "markers": {
@@ -848,8 +964,35 @@ async def trajectory_payload(
                         "chair_start_k": _nearest_k(int(lap.idx_turn_chair_start)),
                         "chair_end_k": _nearest_k(int(lap.idx_turn_chair_end)),
                     },
+                    "trajectory_width_m": float(lap_width) if lap_width is not None else None,
                 }
             )
+
+        # 計算軌跡寬度統計
+        width_stats: Optional[dict] = None
+        if lap_widths:
+            widths_arr = np.array(lap_widths, dtype=float)
+            widest_idx = int(np.argmax(widths_arr))
+            narrowest_idx = int(np.argmin(widths_arr))
+            mean_w = float(np.mean(widths_arr))
+            std_w = float(np.std(widths_arr)) if len(widths_arr) > 1 else 0.0
+            cv_pct = (std_w / mean_w * 100) if mean_w > 1e-9 else 0.0
+            
+            # 找到對應的 lap_index（1-based）
+            valid_lap_indices = [
+                lp["lap_index"] for lp in laps_payload 
+                if lp["trajectory_width_m"] is not None
+            ]
+            
+            width_stats = {
+                "widest_lap_index": valid_lap_indices[widest_idx] if valid_lap_indices else None,
+                "widest_lap_width_m": float(widths_arr[widest_idx]),
+                "narrowest_lap_index": valid_lap_indices[narrowest_idx] if valid_lap_indices else None,
+                "narrowest_lap_width_m": float(widths_arr[narrowest_idx]),
+                "mean_width_m": mean_w,
+                "std_width_m": std_w,
+                "cv_pct": cv_pct,
+            }
 
         return {
             "meta": {
@@ -874,6 +1017,7 @@ async def trajectory_payload(
             },
             "frames": {"xy_lr_u16_zlib_b64": b64},
             "laps": laps_payload,
+            "width_stats": width_stats,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -881,3 +1025,91 @@ async def trajectory_payload(
         raise HTTPException(
             status_code=500, detail=f"trajectory payload analysis failed: {e}"
         )
+
+
+@router.post("/gait_cycle_phases", response_model=GaitCyclePhasesResponse)
+@redis_cache(expire=30)
+async def gait_cycle_phases(
+    session_name: str,
+    config: Optional[GaitCyclePhasesRequest] = Body(None),
+) -> GaitCyclePhasesResponse:
+    """
+    回傳左右腳步態週期相位百分比，供前端繪製步態時間軸圖。
+    
+    完整步態週期（以左腳為例）：
+    - DS1: 初始雙支撐期（兩腳同時著地）
+    - SS: 單支撐期（主側腳支撐，對側腳擺動）
+    - DS2: 終末雙支撐期（兩腳同時著地）
+    - Swing: 擺動期（主側腳離地）
+    
+    前端繪製建議：
+    - 左腳：DS1 → SS → DS2 → Swing（從 0% 開始）
+    - 右腳：Swing → DS2 → SS → DS1（反過來，並偏移讓 DS 對齊）
+    - 右腳偏移量 = left.ds1_pct + left.single_support_pct - right.swing_pct
+    
+    顏色建議：
+    - 左腳：深藍(DS) / 中藍(SS) / 淺藍(Swing)
+    - 右腳：深紅(DS) / 中紅(SS) / 淺紅(Swing)
+    """
+    config = config or GaitCyclePhasesRequest()
+    npy_path = await resolve_session_npy_path(session_name)
+
+    try:
+        analyzer = RehabilitationSessionAnalyzer(npy_path=npy_path)
+        left_phases, right_phases = analyzer.compute_gait_cycle_phases(
+            projection=config.projection,
+            smooth_window_s=config.smooth_window_s,
+            flat_frac=config.flat_frac,
+            min_v_abs=config.min_v_abs,
+        )
+        
+        # 轉換為 response 格式
+        left_data = None
+        right_data = None
+        right_offset = None
+        
+        if left_phases:
+            left_data = {
+                "side": left_phases.side,
+                "ds1_pct": float(left_phases.ds1_pct),
+                "single_support_pct": float(left_phases.single_support_pct),
+                "ds2_pct": float(left_phases.ds2_pct),
+                "swing_pct": float(left_phases.swing_pct),
+                "stance_pct": float(left_phases.stance_pct),
+                "avg_cycle_time_s": float(left_phases.avg_cycle_time_s),
+                "n_cycles": int(left_phases.n_cycles),
+            }
+        
+        if right_phases:
+            right_data = {
+                "side": right_phases.side,
+                "ds1_pct": float(right_phases.ds1_pct),
+                "single_support_pct": float(right_phases.single_support_pct),
+                "ds2_pct": float(right_phases.ds2_pct),
+                "swing_pct": float(right_phases.swing_pct),
+                "stance_pct": float(right_phases.stance_pct),
+                "avg_cycle_time_s": float(right_phases.avg_cycle_time_s),
+                "n_cycles": int(right_phases.n_cycles),
+            }
+        
+        # 計算右腳偏移量讓雙支撐期對齊
+        if left_phases and right_phases:
+            # Left 的 DS2 開始於 ds1 + ss
+            # Right 的 DS2 開始於 swing（因為右腳順序是 Swing → DS2 → SS → DS1）
+            left_ds2_start = left_phases.ds1_pct + left_phases.single_support_pct
+            right_ds2_start = right_phases.swing_pct
+            right_offset = float(left_ds2_start - right_ds2_start)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"gait_cycle_phases analysis failed: {e}",
+        )
+
+    return {
+        "left": left_data,
+        "right": right_data,
+        "right_offset_pct": right_offset,
+    }

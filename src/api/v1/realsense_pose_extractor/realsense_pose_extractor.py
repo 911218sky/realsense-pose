@@ -81,7 +81,7 @@ async def list_realsense_pose_sessions(
         100, ge=1, le=500, description="最多匹配的使用者數（避免同名/模糊匹配過多）"
     ),
     exclude_bound_bags: bool = Query(
-        False, description="若為 True，排除已綁定使用者的 bag（只顯示未綁定的 sessions）"
+        default=False, description="若為 True，排除已綁定使用者的 bag（只顯示未綁定的 sessions）"
     ),
 ) -> RealsensePoseExtractorListResponse:
     """
@@ -156,12 +156,13 @@ async def list_realsense_pose_sessions(
 
     # 若要排除已綁定的 bag，使用 aggregation 優化查詢
     if exclude_bound_bags:
-        # 使用 distinct 直接取得所有已綁定的 bag_hash（更快）
-        bound_bag_hashes = await RealsensePoseExtractor.find(
-            RealsensePoseExtractor.user_code != None,
-            RealsensePoseExtractor.bag_hash != None,
-        ).distinct("bag_hash")
-        
+        # 使用 aggregation 取得所有已綁定的 bag_hash
+        pipeline = [
+            {"$match": {"user_code": {"$ne": None}, "bag_hash": {"$ne": None}}},
+            {"$group": {"_id": "$bag_hash"}},
+        ]
+        agg_result = await RealsensePoseExtractor.aggregate(pipeline).to_list()
+        bound_bag_hashes = [r["_id"] for r in agg_result if r["_id"]]
         if bound_bag_hashes:
             # 排除這些 bag_hash
             query = query.find({"bag_hash": {"$nin": bound_bag_hashes}})

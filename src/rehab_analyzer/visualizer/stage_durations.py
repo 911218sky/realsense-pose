@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.patches import Rectangle
 
 from utils import add_prefix_to_filename
 from ..rehab_analyzer import DetectLapsResult
@@ -75,216 +76,287 @@ class StageDurationsPlotterMixin(VisualizerUtilsMixin):
         save_name: str | None = None,
         dpi: int = 190,
         show_seconds: bool = True,
-        show_meters: bool = True,
         row_height: float = 1.0,
         bar_height: float = 0.5,
         min_width_sec: float = 0.5,
-        meters_gap: float = 0.08,
-        min_meters_to_show: float = 0.03,
     ) -> Path:
         """
-        繪製每圈六段耗時的堆疊橫條圖並輸出 PNG。
+        繪製每圈六段耗時的魚骨圖並輸出 PNG。
+        
+        順時針圈從左邊延伸，逆時針圈從右邊延伸。
 
-        回傳：
-            Path：輸出檔案路徑
+        Returns
+        -------
+        Path
+            輸出檔案路徑
         """
         det: DetectLapsResult = self.detect_laps_auto(
             projection=projection,
             smooth_window_s=smooth_window_s,
             flat_frac=flat_frac,
             min_v_abs=min_v_abs,
+            detect_direction=True,
         )
         laps = det.laps
         if not laps:
             raise ValueError("沒有可視覺化的圈數（laps 為空）。")
 
-        # 收集每圈各階段秒數 (N × 6)
-        durations: list[list[float]] = []
+        return self._save_fishbone_layout(
+            laps, save_name, dpi, show_seconds,
+            row_height, bar_height, min_width_sec
+        )
+
+    def _save_fishbone_layout(
+        self,
+        laps: list,
+        save_name: str | None,
+        dpi: int,
+        show_seconds: bool,
+        row_height: float,
+        bar_height: float,
+        min_width_sec: float,
+    ) -> Path:
+        """魚骨圖布局：所有圈按時間順序排列，順時針從左開始，逆時針從右開始"""
+        
+        # 準備所有圈的資料
+        durations = []
+        lap_directions = []
+        lap_objects = []
+        
         for lap in laps:
             row = [max(0.0, getattr(lap, key, 0.0)) for key in STAGE_KEYS]
             durations.append(row)
+            direction = getattr(lap, 'lap_direction', 'unknown')
+            lap_directions.append(direction)
+            lap_objects.append(lap)
+        
         sec = np.array(durations, dtype=float)
-
         totals = sec.sum(axis=1)
-        start_ts = np.array([lap.ts_start for lap in laps], dtype=float)
-        end_ts = np.array([lap.ts_end for lap in laps], dtype=float)
-        lap_len = np.array([lap.dist_lap_path_m for lap in laps], dtype=float)
-
-        # 距離資訊（只顯示在 2/3/4/5 段）
-        outbound = np.array([lap.dist_outbound_m for lap in laps], dtype=float)
-        turnpath = np.array([lap.dist_cone_turn_path_m for lap in laps], dtype=float)
-        retpath = np.array([lap.dist_return_m for lap in laps], dtype=float)
-        turn_to_sit = np.array([lap.dist_turn_to_sit_m for lap in laps], dtype=float)
-
-        meters_map = np.stack(
-            [
-                np.zeros_like(outbound),  # 段 1：無距離
-                outbound,                 # 段 2：離椅→錐
-                turnpath,                 # 段 3：錐內轉身弦長
-                retpath,                  # 段 4：錐→椅
-                turn_to_sit,              # 段 5：椅邊轉身距離
-                np.zeros_like(outbound),  # 段 6：無距離
-            ],
-            axis=1,
-        )
-
+        
         num_laps = len(laps)
-        fig_height = max(2.5, row_height * num_laps)
-        fig, ax = plt.subplots(figsize=(12, fig_height), dpi=dpi)
-
-        ypos = np.arange(num_laps)[::-1]
-        left = np.zeros(num_laps, dtype=float)
-        bars = []
-
-        # 依序堆疊 6 段
-        for idx in range(6):
-            bar = ax.barh(
-                ypos,
-                sec[:, idx],
-                left=left,
-                color=STAGE_COLORS[idx],
-                label=STAGE_LABELS[idx],
-                edgecolor="none",
-                height=bar_height,
-            )
-            bars.append(bar)
-            left += sec[:, idx]
-
-        # 繪製標註
-        self._draw_stage_annotations(
-            ax, bars, sec, meters_map, show_seconds, show_meters,
-            min_width_sec, meters_gap, min_meters_to_show
-        )
-
-        # 右側標註每圈起訖時間與路徑長度
-        max_x = float(np.nanmax(totals)) if np.isfinite(totals).any() else 1.0
-        ax.set_xlim(0, max_x + max_x * 0.36)
-
+        
+        # 統計順時針/逆時針圈數
+        cw_count = sum(1 for d in lap_directions if d == 'clockwise')
+        ccw_count = sum(1 for d in lap_directions if d == 'counterclockwise')
+        total_count = cw_count + ccw_count
+        cw_pct = (cw_count / total_count * 100) if total_count > 0 else 0
+        ccw_pct = (ccw_count / total_count * 100) if total_count > 0 else 0
+        
+        # 計算各方向的時間統計
+        cw_times = [totals[i] for i, d in enumerate(lap_directions) if d == 'clockwise']
+        ccw_times = [totals[i] for i, d in enumerate(lap_directions) if d == 'counterclockwise']
+        
+        cw_mean = float(np.mean(cw_times)) if cw_times else 0
+        ccw_mean = float(np.mean(ccw_times)) if ccw_times else 0
+        cw_cv = (float(np.std(cw_times)) / cw_mean * 100) if cw_mean > 0 and len(cw_times) > 1 else 0
+        ccw_cv = (float(np.std(ccw_times)) / ccw_mean * 100) if ccw_mean > 0 and len(ccw_times) > 1 else 0
+        
+        # 計算最大時間用於設定比例
+        max_total = float(np.nanmax(totals)) if np.isfinite(totals).any() else 1.0
+        
+        # 設定圖表尺寸 - 更寬更高
+        fig_height = max(10, row_height * num_laps * 0.6 + 4)
+        fig, ax = plt.subplots(figsize=(18, fig_height), dpi=dpi)
+        
+        # 設定背景色
+        ax.set_facecolor('#fafafa')
+        fig.patch.set_facecolor('white')
+        
+        # 計算 y 位置（從上到下）
+        y_positions = np.arange(num_laps)[::-1]
+        
+        # 設定 x 軸範圍：以 0 為中心
+        x_margin = max_total * 0.3
+        ax.set_xlim(-max_total - x_margin, max_total + x_margin)
+        
+        # 繪製中央分隔線（更美觀的樣式）
+        ax.axvline(x=0, color='#cccccc', linestyle='-', linewidth=1.5, zorder=1)
+        
+        # 繪製淺色背景區域
+        ax.axvspan(-max_total - x_margin, 0, alpha=0.03, color='blue', zorder=0)
+        ax.axvspan(0, max_total + x_margin, alpha=0.03, color='red', zorder=0)
+        
+        # 為每一圈繪製條形圖
         for lap_idx in range(num_laps):
-            tail_x = totals[lap_idx]
-            text = (
-                f"{self._fmt_ts(start_ts[lap_idx])} → "
-                f"{self._fmt_ts(end_ts[lap_idx])} · {lap_len[lap_idx]:.2f} m"
-            )
-            ax.text(
-                tail_x + 0.28,
-                ypos[lap_idx],
-                text,
-                ha="left",
-                va="center",
-                fontsize=10,
-                color="#2b2b2b",
-            )
-
-        # Y 軸設定
-        ax.set_yticks(ypos)
-        ax.set_yticklabels([f"Lap {idx + 1}" for idx in range(num_laps)], fontsize=11)
-
-        ymin, ymax = ypos.min() - 0.5, ypos.max() + 0.5
-        if show_meters:
-            ymin -= meters_gap * 1.2
-        ax.set_ylim(ymin, ymax)
-
-        # 標題與外觀調整
-        ax.set_xlabel("Time (s)")
-        ax.set_title(f"{self.prefix} - Stage durations", fontsize=14, pad=6)
-
-        for side in ("top", "right"):
-            ax.spines[side].set_visible(False)
-
-        ax.grid(True, axis="x", linestyle="--", alpha=0.22)
+            direction = lap_directions[lap_idx]
+            lap = lap_objects[lap_idx]
+            y_pos = y_positions[lap_idx]
+            
+            # 根據方向決定繪製方向
+            if direction == 'clockwise':
+                self._draw_fishbone_bar(
+                    ax, y_pos, sec[lap_idx], lap, 
+                    start_from_left=True, bar_height=bar_height * 0.7,
+                    show_seconds=show_seconds, min_width_sec=min_width_sec
+                )
+            elif direction == 'counterclockwise':
+                self._draw_fishbone_bar(
+                    ax, y_pos, sec[lap_idx], lap,
+                    start_from_left=False, bar_height=bar_height * 0.7,
+                    show_seconds=show_seconds, min_width_sec=min_width_sec
+                )
+            else:
+                # 未知方向：預設放左邊，用較淺的顏色
+                self._draw_fishbone_bar(
+                    ax, y_pos, sec[lap_idx], lap,
+                    start_from_left=True, bar_height=bar_height * 0.5,
+                    show_seconds=show_seconds, min_width_sec=min_width_sec,
+                    alpha=0.5
+                )
+        
+        # Y 軸設定 - 簡潔的標籤
+        ax.set_yticks(y_positions)
+        lap_labels = []
+        for i, direction in enumerate(lap_directions):
+            symbol = "↻" if direction == "clockwise" else "↺" if direction == "counterclockwise" else "?"
+            lap_labels.append(f"{i + 1} {symbol}")
+        ax.set_yticklabels(lap_labels, fontsize=10, fontweight='medium')
+        
+        # 設定 y 軸範圍
+        ax.set_ylim(y_positions.min() - 0.8, y_positions.max() + 1.5)
+        
+        # X 軸設定
+        ax.set_xlabel("Duration (seconds)", fontsize=11, labelpad=10)
+        
+        # 設定 x 軸刻度為對稱的
+        max_tick = int(np.ceil(max_total / 2) * 2)
+        ticks = np.arange(-max_tick, max_tick + 1, 2)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([str(abs(t)) for t in ticks], fontsize=9)
+        
+        # 標題
+        ax.set_title(f"{self.prefix}\nStage Durations by Direction", 
+                    fontsize=14, fontweight='bold', pad=15)
+        
+        # 添加方向標籤 + 統計資訊
+        # 順時針統計（左側）
+        cw_stats = f"← Clockwise ↻\n{cw_count} laps ({cw_pct:.0f}%)\nAvg: {cw_mean:.1f}s | CV: {cw_cv:.1f}%"
+        ax.text(-max_total * 0.5, y_positions.max() + 1.3, cw_stats,
+               ha='center', va='bottom', fontsize=11, fontweight='bold', 
+               color='#1f77b4', linespacing=1.4)
+        
+        # 逆時針統計（右側）
+        ccw_stats = f"Counterclockwise ↺ →\n{ccw_count} laps ({ccw_pct:.0f}%)\nAvg: {ccw_mean:.1f}s | CV: {ccw_cv:.1f}%"
+        ax.text(max_total * 0.5, y_positions.max() + 1.3, ccw_stats,
+               ha='center', va='bottom', fontsize=11, fontweight='bold', 
+               color='#d62728', linespacing=1.4)
+        
+        # 外觀調整
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#cccccc')
+        ax.spines['bottom'].set_color('#cccccc')
+        
+        # 網格線
+        ax.grid(True, axis='x', linestyle='--', alpha=0.3, color='#999999')
         ax.set_axisbelow(True)
-        ax.margins(x=0.01, y=0.02)
-
-        # 圖例放在下方
-        handles = [bars[i][0] for i in range(len(bars))]
-        fig.legend(
+        
+        # 圖例 - 放在底部，緊貼 x 軸標籤下方
+        handles = [Rectangle((0,0), 1, 1, color=STAGE_COLORS[i], ec='white', lw=0.5) 
+                   for i in range(6)]
+        ax.legend(
             handles=handles,
             labels=STAGE_LABELS,
             ncols=6,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 0.01),
-            frameon=False,
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.08),
+            frameon=True,
+            fancybox=True,
+            shadow=False,
             fontsize=9,
-            handlelength=1.1,
-            handletextpad=0.4,
+            handlelength=1.2,
+            handletextpad=0.5,
+            columnspacing=1.0,
+            edgecolor='#cccccc',
         )
-
-        fig.tight_layout(rect=(0, 0.06, 1, 1))
-
-        # 檔名與儲存
-        filename = add_prefix_to_filename(save_name or "stage_durations.png", self.prefix)
-        save_path = Path(self.out_dir) / (filename or "stage_durations.png")
+        
+        plt.tight_layout()
+        
+        # 儲存
+        filename = add_prefix_to_filename(save_name or "stage_durations_fishbone.png", self.prefix)
+        save_path = Path(self.out_dir) / (filename or "stage_durations_fishbone.png")
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(str(save_path), bbox_inches="tight", pad_inches=0.02)
+        fig.savefig(str(save_path), bbox_inches="tight", pad_inches=0.05, facecolor='white')
         plt.close(fig)
-
+        
         return save_path
 
-    def _draw_stage_annotations(
+    def _draw_fishbone_bar(
         self,
         ax: Axes,
-        bars: list,
-        sec: np.ndarray[Any, Any],
-        meters_map: np.ndarray[Any, Any],
+        y_pos: float,
+        durations: np.ndarray,
+        lap: Any,
+        start_from_left: bool,
+        bar_height: float,
         show_seconds: bool,
-        show_meters: bool,
         min_width_sec: float,
-        meters_gap: float,
-        min_meters_to_show: float,
+        alpha: float = 1.0,
     ) -> None:
-        """繪製階段標註（秒數和距離）。"""
-        def put_text(
-            x: float,
-            y: float,
-            text: str,
-            *,
-            ha: str = "center",
-            va: str = "center",
-            fontsize: int = 9,
-            color: str = "white",
-            bold: bool = True,
-            clip: bool = True,
-        ) -> None:
-            ax.text(
-                x, y, text,
-                ha=ha, va=va, fontsize=fontsize, color=color,
-                fontweight="bold" if bold else None,
-                clip_on=clip,
-            )
-
-        # 每段中顯示秒數
-        if show_seconds:
-            for j, bar in enumerate(bars):
-                for lap_idx, rect in enumerate(bar):
-                    width = rect.get_width()
-                    if width <= 0 or width < min_width_sec:
-                        continue
-
-                    if j == 2:
-                        dist_val = meters_map[lap_idx, j]
-                        dist_val = dist_val if np.isfinite(dist_val) else 0.0
-                        label = f"{sec[lap_idx, j]:.2f}s·{dist_val:.2f} m"
-                    else:
-                        label = f"{sec[lap_idx, j]:.2f}s"
-
-                    cx = rect.get_x() + width / 2.0
-                    cy = rect.get_y() + rect.get_height() / 2.0
-                    put_text(cx, cy, label)
-
-        # 距離標註
-        if show_meters:
-            for j in (1, 2, 3, 4):
-                bar = bars[j]
-                for lap_idx, rect in enumerate(bar):
-                    dist_val = float(meters_map[lap_idx, j])
-                    if dist_val < min_meters_to_show:
-                        continue
-
-                    width = rect.get_width()
-                    cx = rect.get_x() + width / 2.0
-                    cy = rect.get_y() - meters_gap
-                    put_text(
-                        cx, cy, f"{dist_val:.2f} m",
-                        va="top", fontsize=9, color="#2b2b2b", clip=False,
-                    )
+        """繪製單個圈的魚骨條形圖 - 優化版本"""
+        
+        total_duration = np.sum(durations)
+        
+        if start_from_left:
+            # 順時針：從 0 向左延伸（負值方向）
+            current_x = 0
+            for stage_idx in range(6):
+                if durations[stage_idx] <= 0:
+                    continue
+                width = durations[stage_idx]
+                left = current_x - width
+                
+                ax.barh(
+                    y_pos, width, left=left,
+                    color=STAGE_COLORS[stage_idx],
+                    edgecolor='white', linewidth=0.8,
+                    height=bar_height, alpha=alpha, zorder=2
+                )
+                
+                # 永遠顯示秒數
+                if show_seconds:
+                    cx = left + width / 2
+                    ax.text(cx, y_pos, f"{width:.1f}", 
+                           ha='center', va='center',
+                           fontsize=6, color='white', fontweight='bold', zorder=3)
+                
+                current_x = left
+            
+            # 在右側顯示時間資訊
+            time_text = f"{self._fmt_ts(lap.ts_start)} → {self._fmt_ts(lap.ts_end)}"
+            info_text = f"{total_duration:.1f}s · {lap.dist_lap_path_m:.2f}m"
+            ax.text(0.3, y_pos + bar_height * 0.3, time_text, 
+                   ha='left', va='center', fontsize=8, color='#333333')
+            ax.text(0.3, y_pos - bar_height * 0.3, info_text, 
+                   ha='left', va='center', fontsize=8, color='#666666')
+        else:
+            # 逆時針：從 0 向右延伸（正值方向）
+            current_x = 0
+            for stage_idx in range(6):
+                if durations[stage_idx] <= 0:
+                    continue
+                width = durations[stage_idx]
+                
+                ax.barh(
+                    y_pos, width, left=current_x,
+                    color=STAGE_COLORS[stage_idx],
+                    edgecolor='white', linewidth=0.8,
+                    height=bar_height, alpha=alpha, zorder=2
+                )
+                
+                # 顯示秒數
+                if show_seconds:
+                    cx = current_x + width / 2
+                    ax.text(cx, y_pos, f"{width:.1f}", 
+                           ha='center', va='center',
+                           fontsize=6, color='white', fontweight='bold', zorder=3)
+                
+                current_x += width
+            
+            # 在左側顯示時間資訊
+            time_text = f"{self._fmt_ts(lap.ts_start)} → {self._fmt_ts(lap.ts_end)}"
+            info_text = f"{total_duration:.1f}s · {lap.dist_lap_path_m:.2f}m"
+            ax.text(-0.3, y_pos + bar_height * 0.3, time_text, 
+                   ha='right', va='center', fontsize=8, color='#333333')
+            ax.text(-0.3, y_pos - bar_height * 0.3, info_text, 
+                   ha='right', va='center', fontsize=8, color='#666666')

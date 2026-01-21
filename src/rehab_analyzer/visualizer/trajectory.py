@@ -263,8 +263,7 @@ class TrajectoryVideoExporterMixin(VisualizerUtilsMixin):
 
         # 設置 FFmpeg 管線
         save_path = self._setup_video_output(
-            save_name, left_joint, right_joint, figsize, dpi, fps_out, 
-            ffmpeg_preset, ffmpeg_crf
+            save_name, left_joint, right_joint
         )
         
         width = int(round(figsize[0] * dpi))

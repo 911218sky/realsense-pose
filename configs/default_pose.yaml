@@ -75,3 +75,19 @@ circle_radius: 3
 
 # 畫上關節點的連線線條粗細 (當 save_video 為 true 時有效)
 line_thickness: 2
+
+# 錨點偵測設定
+# 是否自動偵測椅子與錐桶位置（布林）
+detect_anchors: true
+
+# 是否將偵測到的錨點位置存檔（布林）
+# true -> 將錨點資訊存為 JSON 檔案，供後續分析使用
+save_anchors: true
+
+# 椅子半徑範圍（公尺）[min, max]
+# 說明：用於圈數偵測時判斷是否進入椅子區域的半徑範圍
+chair_radius: [1.5, 1.7]
+
+# 錐桶半徑範圍（公尺）[min, max]
+# 說明：用於圈數偵測時判斷是否進入錐桶區域的半徑範圍
+cone_radius: [1.5, 1.7]

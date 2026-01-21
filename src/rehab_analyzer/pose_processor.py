@@ -7,7 +7,6 @@ from typing import Optional, Sequence, Tuple, Union, Literal
 import numpy as np
 from cachetools import cachedmethod
 from scipy.signal import savgol_filter
-from scipy.ndimage import uniform_filter1d
 
 from .cache_keys import method_key
 from .data_loader import DataLoader
@@ -16,7 +15,7 @@ class PoseProcessor(DataLoader):
     """提供投影、平滑、微分等基礎處理工具。"""
 
     def _moving_average(self, data: np.ndarray, k: int) -> np.ndarray:
-        """對 1D 或 2D 陣列做移動平均並簡單補洞。
+        """對 1D 或 2D 陣列做平滑並簡單補洞。
 
         若輸入為 1D（形狀為 (N,)），會自動視為單一欄位的 (N,1) 來處理，
         回傳時再還原成 1D；2D (N, D) 則維持原有行為。
@@ -24,7 +23,7 @@ class PoseProcessor(DataLoader):
         規則：
         * 把 0 視為缺值
         * 缺值用線性內插補齊（含首尾，首尾用最近有效值延伸）
-        * 最後用移動平均平滑（使用 `scipy.ndimage.uniform_filter1d`，速度較快）
+        * 最後用 Savitzky-Golay 濾波器平滑（比 uniform filter 更能保持軌跡形狀）
         """
         if k is None or int(k) <= 1:
             return data
@@ -58,7 +57,19 @@ class PoseProcessor(DataLoader):
                 # np.interp 會在首尾用 left/right 延伸最近的有效值
                 filled = np.interp(x, valid_idx, fp, left=fp[0], right=fp[-1])
 
-            d[:, j] = uniform_filter1d(filled, size=int(k), mode="nearest")
+            # 使用 Savitzky-Golay 濾波器，比 uniform filter 更能保持軌跡形狀
+            # window 必須是奇數且 <= n
+            win = int(k)
+            if win % 2 == 0:
+                win += 1
+            win = min(win, n if n % 2 == 1 else n - 1)
+            win = max(win, 5)  # 最小 window 為 5
+            
+            if win >= 5 and n >= win:
+                # polyorder=2 可以保持曲線形狀，同時平滑噪聲
+                d[:, j] = savgol_filter(filled, window_length=win, polyorder=2, mode="interp")
+            else:
+                d[:, j] = filled
 
         smoothed = d
 
@@ -225,8 +236,11 @@ class PoseProcessor(DataLoader):
         """取得左右髖在 2D 投影平面的座標並平滑。
 
         回傳：
-        - L2, R2: (N, 2) 的 2D 軌跡
-        - valid : (N,) bool，表示該幀兩側髖是否都有有效值
+        - L2, R2: (N, 2) 的 2D 軌跡（已平滑）
+        - valid : (N,) bool，表示該幀是否有有效座標（平滑後重新計算）
+
+        注意：平滑會透過內插填補缺值，因此回傳的 valid 是基於平滑後座標
+        是否為有限值（非 NaN/Inf）來判斷，而非原始資料的有效性。
         """
         li = self.resolve_joint(left_joint)
         ri = self.resolve_joint(right_joint)
@@ -237,23 +251,29 @@ class PoseProcessor(DataLoader):
 
         valid_L = np.any(Lh != 0.0, axis=1)
         valid_R = np.any(Rh != 0.0, axis=1)
-        valid = valid_L & valid_R
+        valid_raw = valid_L & valid_R
 
         proj = projection.lower()
         if proj == "xz":
-            l2 = Lh[:, [0, 2]]
-            r2 = Rh[:, [0, 2]]
+            l2 = Lh[:, [0, 2]].copy()
+            r2 = Rh[:, [0, 2]].copy()
         elif proj == "xy":
-            l2 = Lh[:, [0, 1]]
-            r2 = Rh[:, [0, 1]]
+            l2 = Lh[:, [0, 1]].copy()
+            r2 = Rh[:, [0, 1]].copy()
         else:
             raise ValueError("projection 僅支援 'xz' 或 'xy'")
 
-        l2[~valid] = 0.0
-        r2[~valid] = 0.0
+        l2[~valid_raw] = 0.0
+        r2[~valid_raw] = 0.0
 
         l2 = self._moving_average(l2, smooth_window)
         r2 = self._moving_average(r2, smooth_window)
+
+        # 平滑後重新計算 valid：檢查座標是否為有限值
+        valid = (
+            np.isfinite(l2).all(axis=1) &
+            np.isfinite(r2).all(axis=1)
+        )
         return l2, r2, valid
 
     @cachedmethod(attrgetter("cache"), key=partial(method_key, "_hip_separation_series"))
@@ -430,6 +450,3 @@ class PoseProcessor(DataLoader):
             valid_mask=valid,
         )
         return theta_unwrap
-
-# 圈數偵測與路徑 / 速度序列
-

@@ -45,6 +45,9 @@ def compute_percentiles(
     """
     if percentiles is None:
         percentiles = DEFAULT_PERCENTILES
+    
+    if len(percentiles) != 5:
+        raise ValueError("percentiles must contain exactly 5 values")
 
     values = np.asarray(values, dtype=float)
     valid = values[np.isfinite(values)]

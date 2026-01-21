@@ -9,6 +9,7 @@ from rehab_analyzer.constants import (
    DEFAULT_K_SMOOTH,
 )
 
+
 class AnalyzerBaseParams(BaseModel):
    """共享的通用參數，避免每個 API 重複定義。"""
 
@@ -66,6 +67,11 @@ class FFTPeriodogramParams(BaseModel):
 
 
 # ---------- Request models ----------
+
+class GaitCyclePhasesRequest(AnalyzerBaseParams):
+   """步態週期相位資料請求（用於繪製步態時間軸圖）。"""
+   pass
+
 
 class StageDurationsRequest(AnalyzerBaseParams):
    """每圈六段耗時圖請求。"""
@@ -217,7 +223,55 @@ class SwingInfoHeatmapRequest(AnalyzerBaseParams):
    )
 
 
+class MinutelyTrendRequest(AnalyzerBaseParams):
+   """每分鐘速度與圈數趨勢請求。"""
+
+   max_minutes: Optional[int] = Field(
+      None,
+      description="限制輸出前 N 分鐘；None 表示全部。",
+   )
+
+
 # ---------- Response models ----------
+
+class GaitPhaseData(BaseModel):
+   """單側步態週期相位資料。"""
+   side: str = Field(..., description="側別：'L' 或 'R'。")
+   ds1_pct: float = Field(..., description="初始雙支撐期百分比 (%)。")
+   single_support_pct: float = Field(..., description="單支撐期百分比 (%)。")
+   ds2_pct: float = Field(..., description="終末雙支撐期百分比 (%)。")
+   swing_pct: float = Field(..., description="擺動期百分比 (%)。")
+   stance_pct: float = Field(..., description="總支撐期百分比 (%)。")
+   avg_cycle_time_s: float = Field(..., description="平均步態週期時間 (秒)。")
+   n_cycles: int = Field(..., description="用於計算平均的有效週期數。")
+
+
+class GaitCyclePhasesResponse(BaseModel):
+   """
+   步態週期相位資料回應，供前端繪製步態時間軸圖。
+   
+   完整步態週期（以左腳為例）：
+   - DS1: 初始雙支撐期（兩腳同時著地）- 深色
+   - SS: 單支撐期（主側腳支撐，對側腳擺動）- 中色
+   - DS2: 終末雙支撐期（兩腳同時著地）- 深色
+   - Swing: 擺動期（主側腳離地）- 淺色
+   
+   前端繪製建議：
+   - 左腳：DS1 → SS → DS2 → Swing（從 0% 開始）
+   - 右腳：Swing → DS2 → SS → DS1（反過來，並偏移讓 DS 對齊）
+   - 右腳偏移量 = left.ds1_pct + left.single_support_pct - right.swing_pct
+   """
+   left: Optional[GaitPhaseData] = Field(
+      None, description="左腳步態週期相位資料；無有效數據時為 null。"
+   )
+   right: Optional[GaitPhaseData] = Field(
+      None, description="右腳步態週期相位資料；無有效數據時為 null。"
+   )
+   right_offset_pct: Optional[float] = Field(
+      None,
+      description="右腳繪製時的水平偏移量 (%)，用於讓左右腳的雙支撐期對齊。"
+   )
+
 
 class StageDurationEntry(BaseModel):
    label: str = Field(..., description="階段標籤（固定 1~6）。")
@@ -234,6 +288,7 @@ class StageDurationLap(BaseModel):
    ts_end: float = Field(..., description="圈結束時間戳 (s)。")
    total_duration_s: float = Field(..., description="該圈總耗時 (s)。")
    total_distance_m: float = Field(..., description="該圈路徑距離 (m)。")
+   lap_direction: str = Field(..., description="圈數方向：clockwise（順時針）、counterclockwise（逆時針）或 unknown（未知）。")
    stage_durations: List[StageDurationEntry] = Field(
       ..., description="六個階段的耗時/距離明細。"
    )
@@ -255,6 +310,7 @@ class TurnRegions(BaseModel):
 
 class PerLapOffsetLap(BaseModel):
    lap_index: int = Field(..., description="圈次（從 1 開始）。")
+   lap_direction: str = Field(..., description="圈數方向：clockwise（順時針）、counterclockwise（逆時針）或 unknown（未知）。")
    # Series fields are returned in compact form (float32 little-endian + zlib + base64)
    time_s_f32_zlib_b64: FloatArrayF32ZlibB64 = Field(
       ...,
@@ -357,6 +413,7 @@ class MultiFFTFromSeriesResponse(BaseModel):
 
 class SpeedHeatmapMark(BaseModel):
    lap_index: int = Field(..., description="圈次（從 1 開始）。")
+   lap_direction: str = Field(..., description="圈數方向：clockwise（順時針）、counterclockwise（逆時針）或 unknown（未知）。")
    cone_start_frac: float = Field(..., description="錐桶轉彎起點（相對圈長 0~1）。")
    cone_end_frac: float = Field(..., description="錐桶轉彎終點（相對圈長 0~1）。")
    chair_start_frac: float = Field(..., description="椅子轉彎起點（相對圈長 0~1）。")
@@ -390,6 +447,21 @@ class SwingInfoHeatmapResponse(BaseModel):
    swing_s: List[List[Optional[float]]] = Field(
       ...,
       description="swing 秒數矩陣（2×N）；None 表示缺值。",
+   )
+
+
+class MinutelyTrendResponse(BaseModel):
+   """每分鐘速度與圈數趨勢資料。"""
+
+   minutes: List[int] = Field(..., description="分鐘序號（1-based）。")
+   avg_speeds: List[Optional[float]] = Field(
+      ...,
+      description="各分鐘平均速度 (m/s)；None 表示該分鐘無有效數據。",
+   )
+   lap_counts: List[int] = Field(..., description="各分鐘完成圈數。")
+   lap_details: List[List[int]] = Field(
+      ...,
+      description="各分鐘包含的圈數索引列表（1-based lap_index）。",
    )
 
 # ---------- Trajectory payload (frontend-rendered "video") ----------
@@ -493,6 +565,7 @@ class TrajectoryLapMarkers(BaseModel):
 
 class TrajectoryLap(BaseModel):
    lap_index: int = Field(..., description="圈次（1-based）。")
+   lap_direction: str = Field(..., description="圈數方向：clockwise（順時針）、counterclockwise（逆時針）或 unknown（未知）。")
    payload_start_k: Optional[int] = Field(
       None,
       description="此圈在 payload frames 中的起點索引 k（0-based；此圈沒有落在 payload 內時為 None）。",
@@ -502,6 +575,10 @@ class TrajectoryLap(BaseModel):
       description="此圈在 payload frames 中的終點索引 k（0-based；此圈沒有落在 payload 內時為 None）。",
    )
    markers: TrajectoryLapMarkers
+   trajectory_width_m: Optional[float] = Field(
+      None,
+      description="此圈軌跡寬度（公尺），即軌跡垂直於行進方向的最大偏移範圍。",
+   )
 
 
 class TrajectoryMeta(BaseModel):
@@ -522,8 +599,37 @@ class TrajectoryMeta(BaseModel):
    n_frames: int = Field(..., description="payload 幀數（解壓後可重建 frames 長度；每幀有 4 個 uint16）。")
 
 
+class TrajectoryWidthStats(BaseModel):
+   """軌跡寬度統計資料。"""
+   widest_lap_index: Optional[int] = Field(
+      None, description="最寬圈的圈次（1-based）；無有效數據時為 null。"
+   )
+   widest_lap_width_m: Optional[float] = Field(
+      None, description="最寬圈的軌跡寬度（公尺）。"
+   )
+   narrowest_lap_index: Optional[int] = Field(
+      None, description="最窄圈的圈次（1-based）；無有效數據時為 null。"
+   )
+   narrowest_lap_width_m: Optional[float] = Field(
+      None, description="最窄圈的軌跡寬度（公尺）。"
+   )
+   mean_width_m: Optional[float] = Field(
+      None, description="所有圈的平均軌跡寬度（公尺）。"
+   )
+   std_width_m: Optional[float] = Field(
+      None, description="軌跡寬度標準差（公尺）。"
+   )
+   cv_pct: Optional[float] = Field(
+      None, description="軌跡寬度變異係數 (%)，即 std/mean * 100。"
+   )
+
+
 class TrajectoryPayloadResponse(BaseModel):
    meta: TrajectoryMeta
    scene: TrajectoryScene
    frames: TrajectoryFrames
    laps: List[TrajectoryLap]
+   width_stats: Optional[TrajectoryWidthStats] = Field(
+      None,
+      description="軌跡寬度統計（最寬/最窄圈、變異度）；無有效數據時為 null。",
+   )

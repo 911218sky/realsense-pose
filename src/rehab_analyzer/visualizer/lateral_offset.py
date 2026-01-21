@@ -323,11 +323,12 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
 
         ax.axhline(0.0, linestyle="--", linewidth=1, label="0° at lap start")
 
-        # 標出轉彎方向資訊
+        # 標出轉彎方向資訊和整圈方向
         cone_dir = lap.turn_cone_dir
         chair_dir = lap.turn_chair_dir
         dtheta_cone = lap.delta_theta_cone_deg
         dtheta_chair = lap.delta_theta_chair_deg
+        lap_direction = getattr(lap, 'lap_direction', 'unknown')
 
         def dir_str(d: int) -> str:
             if d > 0:
@@ -335,10 +336,19 @@ class LateralOffsetPlotterMixin(VisualizerUtilsMixin):
             if d < 0:
                 return "-1 (Direction: θ decreasing)"
             return "0 (No significant turning)"
+        
+        def direction_str(direction: str) -> str:
+            if direction == "clockwise":
+                return "Clockwise ↻"
+            elif direction == "counterclockwise":
+                return "Counterclockwise ↺"
+            else:
+                return "Unknown"
 
         info_lines = [
-            f"cone turn: dir={dir_str(cone_dir)}, Δθ≈{dtheta_cone:.1f}°",
-            f"chair turn: dir={dir_str(chair_dir)}, Δθ≈{dtheta_chair:.1f}°",
+            f"Lap Direction: {direction_str(lap_direction)}",
+            f"Cone turn: dir={dir_str(cone_dir)}, Δθ≈{dtheta_cone:.1f}°",
+            f"Chair turn: dir={dir_str(chair_dir)}, Δθ≈{dtheta_chair:.1f}°",
         ]
 
         ax.text(
