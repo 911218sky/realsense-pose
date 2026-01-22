@@ -13,13 +13,12 @@
 - 距離類指標：越低越好（路徑越短表示動作越有效率）
 - 轉向角度：中性（取決於轉向策略）
 """
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 
 from db.mongo.models import PercentileStatsEmbed
-
-from .models import MetricComparison
 
 
 # 指標方向定義：True = 越高越好，False = 越低越好
@@ -32,6 +31,7 @@ METRIC_DIRECTION: dict[str, bool] = {
     "dur_return": False,
     "dur_turn_to_sit": False,
     "dur_sit": False,
+    "dur_walking": False,  # 總行走時間 - 越低越好
     # 步態類
     "spm": True,              # 步頻 - 越高越好
     "mean_step_len": True,    # 步長 - 越高越好
@@ -45,10 +45,21 @@ METRIC_DIRECTION: dict[str, bool] = {
     "dist_outbound_m": False, # 去程距離 - 越低越好
     "dist_return_m": False,   # 回程距離 - 越低越好
     "dist_cone_turn_m": False,# 錐子轉身距離 - 越低越好
+    "dist_walking_m": False,  # 行走總距離 - 越低越好
     # 轉向類 - 中性，但為了雷達圖統一設為越低越好（轉向角度越小越穩定）
     "delta_theta_cone_deg": False,
     "delta_theta_chair_deg": False,
 }
+
+
+@dataclass
+class MetricComparisonResult:
+    """單一指標比對結果（內部使用）。"""
+    user_value: float
+    cohort_value: float
+    diff_pct: float
+    is_better: bool
+    status: Literal["worse", "similar", "better"]
 
 
 def compute_diff_pct(user_val: float, cohort_val: float) -> float:
@@ -96,8 +107,8 @@ def create_metric_comparison(
     user_percentile: int = 50,
     cohort_percentile: int = 50,
     metric_name: str = "",
-) -> MetricComparison:
-    """建立單一指標比對結果（簡化版）。
+) -> MetricComparisonResult:
+    """建立單一指標比對結果。
 
     Args:
         user_values: 使用者多圈的數值陣列
@@ -107,7 +118,7 @@ def create_metric_comparison(
         metric_name: 指標名稱（用於判斷方向）
     
     Returns:
-        MetricComparison: 簡化的比對結果
+        MetricComparisonResult: 比對結果
         - diff_pct: 正數=比族群高，負數=比族群低
         - is_better: 這個差異對使用者是否有利
         - status: "better" / "similar" / "worse"
@@ -139,7 +150,7 @@ def create_metric_comparison(
     else:
         status = "worse"
 
-    return MetricComparison(
+    return MetricComparisonResult(
         user_value=user_value,
         cohort_value=cohort_value,
         diff_pct=diff_pct,

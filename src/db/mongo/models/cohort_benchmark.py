@@ -1,10 +1,4 @@
 """族群基準值 MongoDB 文件模型。
-
-用於儲存各族群的統計基準值，包含：
-- 圈數時間基準（LapTimeBenchmark）
-- 步態基準（GaitBenchmark）
-- 速度距離基準（SpeedDistanceBenchmark）
-- 轉向基準（TurnBenchmark）
 """
 
 from datetime import datetime
@@ -42,6 +36,7 @@ class LapTimeBenchmarkEmbed(BaseModel):
     dur_return: PercentileStatsEmbed = Field(..., description="返回時間統計")
     dur_turn_to_sit: PercentileStatsEmbed = Field(..., description="對位轉身時間統計")
     dur_sit: PercentileStatsEmbed = Field(..., description="坐下時間統計")
+    dur_walking: PercentileStatsEmbed = Field(..., description="總行走時間統計（秒）")
 
 
 class GaitBenchmarkEmbed(BaseModel):
@@ -67,6 +62,7 @@ class SpeedDistanceBenchmarkEmbed(BaseModel):
     dist_outbound_m: PercentileStatsEmbed = Field(..., description="去程距離統計（m）")
     dist_return_m: PercentileStatsEmbed = Field(..., description="回程距離統計（m）")
     dist_cone_turn_m: PercentileStatsEmbed = Field(..., description="錐子轉身路徑統計（m）")
+    dist_walking_m: PercentileStatsEmbed = Field(..., description="行走總距離統計（m）= dist_outbound_m + dist_return_m")
 
 
 class TurnBenchmarkEmbed(BaseModel):
@@ -104,6 +100,7 @@ class UserMetricsEmbed(BaseModel):
     dur_return_p50: Optional[float] = Field(None, description="返回時間中位數")
     dur_turn_to_sit_p50: Optional[float] = Field(None, description="對位轉身時間中位數")
     dur_sit_p50: Optional[float] = Field(None, description="坐下時間中位數")
+    dur_walking_p50: Optional[float] = Field(None, description="總行走時間中位數")
     
     # 步態指標（使用者的中位數）
     spm_p50: Optional[float] = Field(None, description="步頻中位數")
@@ -119,6 +116,7 @@ class UserMetricsEmbed(BaseModel):
     dist_outbound_m_p50: Optional[float] = Field(None, description="去程距離中位數")
     dist_return_m_p50: Optional[float] = Field(None, description="回程距離中位數")
     dist_cone_turn_m_p50: Optional[float] = Field(None, description="錐子轉身路徑中位數")
+    dist_walking_m_p50: Optional[float] = Field(None, description="行走總距離中位數")
     
     # 轉向指標（使用者的中位數）
     delta_theta_cone_deg_p50: Optional[float] = Field(None, description="錐子轉身角度中位數")

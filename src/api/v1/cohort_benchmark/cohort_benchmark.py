@@ -64,6 +64,7 @@ def _convert_benchmark_to_response(benchmark: CohortBenchmark) -> BenchmarkRespo
             dur_return=_convert_percentile_stats(benchmark.lap_time.dur_return),
             dur_turn_to_sit=_convert_percentile_stats(benchmark.lap_time.dur_turn_to_sit),
             dur_sit=_convert_percentile_stats(benchmark.lap_time.dur_sit),
+            dur_walking=_convert_percentile_stats(benchmark.lap_time.dur_walking),
         )
 
     gait = None
@@ -85,6 +86,7 @@ def _convert_benchmark_to_response(benchmark: CohortBenchmark) -> BenchmarkRespo
             dist_outbound_m=_convert_percentile_stats(benchmark.speed_distance.dist_outbound_m),
             dist_return_m=_convert_percentile_stats(benchmark.speed_distance.dist_return_m),
             dist_cone_turn_m=_convert_percentile_stats(benchmark.speed_distance.dist_cone_turn_m),
+            dist_walking_m=_convert_percentile_stats(benchmark.speed_distance.dist_walking_m),
         )
 
     turn = None

@@ -31,6 +31,7 @@ class LapTimeBenchmark(BaseModel):
     dur_return: PercentileStats = Field(..., description="返回時間統計")
     dur_turn_to_sit: PercentileStats = Field(..., description="對位轉身時間統計")
     dur_sit: PercentileStats = Field(..., description="坐下時間統計")
+    dur_walking: PercentileStats = Field(..., description="總行走時間統計（秒）= dur_to_cone + dur_return")
 
 
 class GaitBenchmark(BaseModel):
@@ -50,6 +51,7 @@ class SpeedDistanceBenchmark(BaseModel):
     dist_outbound_m: PercentileStats = Field(..., description="去程距離統計（m）")
     dist_return_m: PercentileStats = Field(..., description="回程距離統計（m）")
     dist_cone_turn_m: PercentileStats = Field(..., description="錐子轉身路徑統計（m）")
+    dist_walking_m: PercentileStats = Field(..., description="行走總距離統計（m）= dist_outbound_m + dist_return_m")
 
 
 class TurnBenchmark(BaseModel):
@@ -197,6 +199,7 @@ class LapTimeComparison(BaseModel):
     dur_return: MetricComparison
     dur_turn_to_sit: MetricComparison
     dur_sit: MetricComparison
+    dur_walking: MetricComparison = Field(..., description="總行走時間比對")
 
 
 class GaitComparison(BaseModel):
@@ -216,6 +219,7 @@ class SpeedDistanceComparison(BaseModel):
     dist_outbound_m: MetricComparison
     dist_return_m: MetricComparison
     dist_cone_turn_m: MetricComparison
+    dist_walking_m: MetricComparison = Field(..., description="行走總距離比對")
 
 
 class TurnComparison(BaseModel):
