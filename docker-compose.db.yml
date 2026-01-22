@@ -1,0 +1,47 @@
+name: realsense-pose_db
+
+services:
+  mongo:
+    image: mongo:8.0.13
+    container_name: ${MONGO_CONTAINER_NAME:-realsense-pose-mongo}
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-nycu_rehab}
+    volumes:
+      # 若設定 HOST_MONGO_DIR，會掛載到外部目錄；否則使用 Docker volume
+      - ${HOST_MONGO_DIR:-mongo_data}:/data/db
+      - ${HOST_BACKUP_DIR:-./backups}/mongo:/backups
+    ports:
+      # Keep host port 27015 to match existing defaults in code/scripts
+      - "${MONGO_PORT:-27015}:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "test \"$(mongosh --quiet \"mongodb://root:${MONGO_ROOT_PASSWORD:-4I0rsokkcCICZNMx}@localhost:27017/admin\" --eval \"db.adminCommand('ping').ok\")\" = \"1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8.4.0
+    container_name: ${REDIS_CONTAINER_NAME:-realsense-pose-redis}
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      # 若設定 HOST_REDIS_DIR，會掛載到外部目錄；否則使用 Docker volume
+      - ${HOST_REDIS_DIR:-redis_data}:/data
+      - ${HOST_BACKUP_DIR:-./backups}/redis:/backups
+    command: ["redis-server", "--appendonly", "yes", "--dir", "/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  # 當未設定 HOST_MONGO_DIR / HOST_REDIS_DIR 時，會使用這些 named volumes
+  mongo_data:
+    name: realsense-pose-mongo-data
+  redis_data:
+    name: realsense-pose-redis-data

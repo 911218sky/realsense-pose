@@ -1,0 +1,75 @@
+name: 📋 Task
+description: Create a development task or to-do item
+title: "[Task]: "
+labels: ["task"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Create a development task or to-do item.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: 📁 Task Type
+      options:
+        - Refactoring
+        - Documentation
+        - Testing
+        - Performance
+        - Security
+        - DevOps / CI/CD
+        - Maintenance
+        - Research
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🔧 Related Module
+      options:
+        - API (src/api)
+        - Rehab Analyzer (src/rehab_analyzer)
+        - Pose Extractor (src/realsense_pose_extractor)
+        - Database (src/db)
+        - CLI (src/cli.py)
+        - Configuration (src/config)
+        - Infrastructure
+        - Multiple/All
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Task Description
+      description: Describe the task in detail
+    validations:
+      required: true
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: ✅ Acceptance Criteria
+      description: List the items that need to be completed
+      placeholder: |
+        - [ ] Item 1
+        - [ ] Item 2
+        - [ ] Item 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📚 Related Resources
+      description: Related documentation, issues, or PR links
+
+  - type: input
+    id: estimate
+    attributes:
+      label: ⏱️ Time Estimate
+      placeholder: e.g., 2h, 1d, 1w

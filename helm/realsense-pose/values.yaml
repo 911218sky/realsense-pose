@@ -1,0 +1,168 @@
+# =============================================================================
+# RealSense Pose - Helm Chart Values
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Settings
+# -----------------------------------------------------------------------------
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# API Service
+# -----------------------------------------------------------------------------
+api:
+  image:
+    repository: ghcr.io/911218sky/realsense-pose
+    tag: "latest"
+    pullPolicy: Always  # 每次都拉取最新映像檔
+  
+  replicaCount: 1
+  
+  # Server configuration
+  port: 8100
+  prefix: "/v1"
+  isProd: "1"
+  serveWeb: "1"
+  
+  # CORS configuration
+  corsAllowOrigins: ""
+  corsAllowOriginRegex: ""
+  
+  # Authentication
+  auth:
+    enabled: false
+    clientSecrets: ""
+    nonceTtlSeconds: "30"
+    maxBodyBytes: "0"
+    exemptPaths: ""
+    timestampToleranceSeconds: "30"
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  # Persistence for app data
+  persistence:
+    data:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+
+# -----------------------------------------------------------------------------
+# Nginx Reverse Proxy
+# -----------------------------------------------------------------------------
+nginx:
+  enabled: true
+  
+  image:
+    repository: nginx
+    tag: "alpine"
+    pullPolicy: IfNotPresent
+  
+  replicaCount: 1
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# -----------------------------------------------------------------------------
+# MongoDB
+# -----------------------------------------------------------------------------
+mongodb:
+  enabled: true
+  
+  image:
+    repository: mongo
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+  
+  auth:
+    # REQUIRED: Must be set for deployment
+    rootPassword: ""
+    database: "nycu_rehab"
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# Redis
+# -----------------------------------------------------------------------------
+redis:
+  enabled: true
+  
+  image:
+    repository: redis
+    tag: "8-alpine"
+    pullPolicy: IfNotPresent
+  
+  maxmemory: "256mb"
+  maxmemoryPolicy: "allkeys-lru"
+  
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/tls-acme: "true"
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: realsense-pose.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: realsense-pose-tls
+  #    hosts:
+  #      - realsense-pose.local
+
+# -----------------------------------------------------------------------------
+# Network Policy
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80

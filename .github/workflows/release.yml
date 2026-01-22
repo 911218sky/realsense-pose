@@ -1,0 +1,110 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name for release (e.g., v1.0.8)'
+        required: true
+        type: string
+      skip:
+        description: 'Skip this workflow (set to true to skip)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ github.event.inputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete existing release
+        run: gh release delete ${{ env.RELEASE_TAG }} --yes || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create deploy package
+        run: |
+          mkdir -p deploy_package
+          
+          # Copy deploy scripts and README
+          cp realsense_pose_deploy/README.md deploy_package/
+          
+          # Copy setup scripts (.bat files for installation)
+          cp -r realsense_pose_deploy/setup deploy_package/
+          
+          # Copy service scripts (.bat files for service management)
+          cp -r realsense_pose_deploy/service deploy_package/
+          
+          # Copy backup scripts
+          cp -r realsense_pose_deploy/backup deploy_package/
+          
+          # Copy maintenance scripts
+          cp -r realsense_pose_deploy/maintenance deploy_package/
+          
+          # Copy README to root for release body
+          cp realsense_pose_deploy/README.md RELEASE_NOTES.md
+          
+          # Copy shared configs from root
+          cp docker-compose.yml deploy_package/
+          cp env.example deploy_package/
+          cp -r nginx deploy_package/
+          cp -r fail2ban deploy_package/
+          
+          # Modify docker-compose.yml for production:
+          # Remove entire build blocks (build: context: dockerfile: args:) using Python for reliable YAML handling
+          python3 << 'EOF'
+          import re
+          
+          with open('deploy_package/docker-compose.yml', 'r') as f:
+              content = f.read()
+          
+          # Remove build blocks with all nested content (handles multi-line build configs)
+          # Match "build:" followed by indented lines until next same-level or less-indented line
+          content = re.sub(
+              r'^(\s*)build:\s*\n(?:\1\s+.*\n)*',
+              '',
+              content,
+              flags=re.MULTILINE
+          )
+          
+          with open('deploy_package/docker-compose.yml', 'w') as f:
+              f.write(content)
+          EOF
+          
+          # Create zip
+          cd deploy_package
+          zip -r ../realsense-pose-deploy.zip .
+
+      - name: Read release notes
+        id: release_notes
+        run: |
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_OUTPUT
+          cat realsense_pose_deploy/README.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: realsense-pose-deploy.zip
+          body: ${{ steps.release_notes.outputs.RELEASE_BODY }}
+          make_latest: true

@@ -1,0 +1,65 @@
+[project]
+name = "realsense-pose"
+version = "0.1.0"
+description = "Pose estimation and rehabilitation analysis system using Intel RealSense camera and MediaPipe"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # YAML 讀寫：載入/儲存設定檔
+    "pyyaml~=6.0.3",
+    # 資料處理：表格/時間序列資料整理
+    "pandas~=2.3.3",
+    # Scientific computing
+    "scipy>=1.11,<2",
+    # 快取工具
+    "cachetools~=6.2.2",
+    # 終端輸出/日誌美化
+    "rich~=14.2.0",
+    # Zstandard 壓縮/解壓
+    "zstandard~=0.25.0",
+    # HTTP 客戶端
+    "httpx~=0.28.1",
+]
+
+[project.optional-dependencies]
+db = [
+    # FastAPI
+    "fastapi[all]~=0.124.2",
+    # Redis client
+    "redis~=7.1.0",
+    # Beanie ODM for MongoDB
+    "beanie~=2.0.1",
+    # Async file I/O
+    "aiofiles~=25.1.0",
+    # Brotli compression
+    "brotli>=1.1.0,<2",
+]
+pose = [
+    # Pose extraction (glibc-based, not for Alpine/musl)
+    "mediapipe==0.10.21",
+    "pyrealsense2>=2.56.5.9235",
+]
+all = [
+    "realsense-pose[db,pose]",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]

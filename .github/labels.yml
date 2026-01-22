@@ -1,0 +1,117 @@
+# Use github-label-sync or create these labels manually
+# Install: npm install -g github-label-sync
+# Run: github-label-sync --access-token YOUR_TOKEN --labels .github/labels.yml YOUR_USERNAME/YOUR_REPO
+
+# === Type Labels ===
+- name: bug
+  color: "d73a4a"
+  description: "🐛 Something isn't working"
+
+- name: enhancement
+  color: "a2eeef"
+  description: "✨ New feature or request"
+
+- name: task
+  color: "0075ca"
+  description: "📋 Development task"
+
+- name: question
+  color: "d876e3"
+  description: "❓ Further information is requested"
+
+- name: documentation
+  color: "0075ca"
+  description: "📖 Improvements or additions to documentation"
+
+# === Status Labels ===
+- name: needs-triage
+  color: "fbca04"
+  description: "🔍 Needs review and categorization"
+
+- name: confirmed
+  color: "0e8a16"
+  description: "✅ Issue has been confirmed"
+
+- name: in-progress
+  color: "1d76db"
+  description: "🚧 Work in progress"
+
+- name: blocked
+  color: "b60205"
+  description: "🚫 Blocked by another issue"
+
+- name: on-hold
+  color: "c5def5"
+  description: "⏸️ On hold"
+
+# === Priority Labels ===
+- name: "priority: critical"
+  color: "b60205"
+  description: "🔴 Critical priority"
+
+- name: "priority: high"
+  color: "d93f0b"
+  description: "🟠 High priority"
+
+- name: "priority: medium"
+  color: "fbca04"
+  description: "🟡 Medium priority"
+
+- name: "priority: low"
+  color: "0e8a16"
+  description: "🟢 Low priority"
+
+# === Module Labels ===
+- name: "module: api"
+  color: "c2e0c6"
+  description: "📡 API related (src/api)"
+
+- name: "module: analyzer"
+  color: "c2e0c6"
+  description: "📊 Rehab Analyzer (src/rehab_analyzer)"
+
+- name: "module: pose"
+  color: "c2e0c6"
+  description: "🎯 Pose Extractor (src/realsense_pose_extractor)"
+
+- name: "module: db"
+  color: "c2e0c6"
+  description: "🗄️ Database (src/db)"
+
+- name: "module: cli"
+  color: "c2e0c6"
+  description: "⌨️ CLI (src/cli.py)"
+
+- name: "module: infra"
+  color: "c2e0c6"
+  description: "🐳 Infrastructure (Docker/Helm)"
+
+# === Difficulty Labels ===
+- name: "good first issue"
+  color: "7057ff"
+  description: "👋 Good for newcomers"
+
+- name: "help-wanted"
+  color: "008672"
+  description: "🆘 Extra attention is needed"
+
+- name: "advanced"
+  color: "5319e7"
+  description: "🧠 Requires deep knowledge"
+
+# === Other Labels ===
+- name: duplicate
+  color: "cfd3d7"
+  description: "📋 This issue or PR already exists"
+
+- name: wontfix
+  color: "ffffff"
+  description: "🚫 This will not be worked on"
+
+- name: invalid
+  color: "e4e669"
+  description: "⚠️ This doesn't seem right"
+
+- name: stale
+  color: "ededed"
+  description: "💤 No recent activity"

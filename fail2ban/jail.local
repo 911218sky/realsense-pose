@@ -1,0 +1,104 @@
+[DEFAULT]
+# 封鎖時間 (秒) - 預設 1 小時
+bantime = 3600
+# 檢測時間範圍 (秒) - 5 分鐘內
+findtime = 300
+# 最大失敗次數
+maxretry = 10
+# 封鎖動作
+banaction = iptables-multiport
+
+# 忽略的 IP (本機和內網)
+ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 5
+
+[nginx-limit-req]
+enabled = true
+filter = nginx-limit-req
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 10
+findtime = 120
+bantime = 7200
+
+[nginx-botsearch]
+enabled = true
+filter = nginx-botsearch
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+findtime = 60
+bantime = 86400
+
+[nginx-badbots]
+enabled = true
+filter = nginx-badbots
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+bantime = 86400
+
+[nginx-ddos]
+enabled = true
+filter = nginx-ddos
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 250
+findtime = 10
+bantime = 604800
+
+# === Additional Security Rules ===
+
+[nginx-shellshock]
+# Shellshock exploit attempts
+enabled = true
+filter = nginx-shellshock
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 1
+bantime = 604800
+
+[nginx-auth-fail]
+# Brute force login attempts (401/403)
+enabled = true
+filter = nginx-auth-fail
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 10
+findtime = 300
+bantime = 86400
+
+[nginx-exploit]
+# SQL injection, XSS, path traversal
+enabled = true
+filter = nginx-exploit
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+findtime = 60
+bantime = 86400
+
+[nginx-noscript]
+# Script file access attempts (.php, .asp, etc.)
+enabled = true
+filter = nginx-noscript
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 5
+findtime = 60
+bantime = 86400
+
+[nginx-noproxy]
+# Open proxy abuse attempts
+enabled = true
+filter = nginx-noproxy
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 1
+bantime = 604800

@@ -1,0 +1,22 @@
+# YAML 讀寫：載入/儲存設定檔（configs/*.yaml）
+PyYAML~=6.0.3
+# 資料處理：表格/時間序列資料整理、輸出分析結果
+pandas~=2.3.3
+
+# Scientific computing (used by rehab_analyzer/* and utils/*)
+scipy>=1.11,<2
+
+# for caching
+# 快取工具：記憶體快取（例如避免重複計算/重複讀取）
+cachetools~=6.2.2
+# for logging
+# 終端輸出/日誌美化：更清楚的 CLI log 與進度顯示
+rich~=14.2.0
+# for decompressing zstd-compressed bag files
+# Zstandard 壓縮/解壓：處理 zstd 壓縮的 bag/資料檔
+zstandard~=0.25.0
+# HTTP client for async requests
+# HTTP 客戶端：用於從 GitHub API 獲取資料
+httpx~=0.28.1
+# Type checking
+basedpyright~=1.37.1

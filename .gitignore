@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+/build/
+develop-eggs/
+/dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+/venv/
+/ENV/
+/env/
+/.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+.debug.env
+
+# Data & Outputs (large files)
+data/
+dataset/
+outputs/
+*.npy
+*.pickle
+*.bag
+
+# Backups
+backups/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Web UI (downloaded from gait_charts releases)
+/web/
+
+# Cursor
+.cursor/
+.cursorignore
+
+# Kiro specs (keep local only)
+.kiro/specs/
+
+# API md
+FRONTEND_API_CHANGES.md

@@ -1,0 +1,112 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue! Please fill out the information below as detailed as possible.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🔧 Affected Module
+      description: Which module is affected by this issue?
+      options:
+        - API (src/api)
+        - Rehab Analyzer (src/rehab_analyzer)
+        - Pose Extractor (src/realsense_pose_extractor)
+        - Database (src/db)
+        - CLI (src/cli.py)
+        - Configuration (src/config)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 Severity
+      options:
+        - Critical - System is unusable
+        - High - Major functionality affected
+        - Medium - Partial functionality impacted
+        - Low - Minor issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: Clearly describe the issue you encountered
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔄 Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Run '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Error Logs
+      description: If applicable, paste the error logs here
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🖥️ Environment
+      description: Please provide your environment information
+      value: |
+        - OS: 
+        - Python: 
+        - Docker: 
+        - RealSense SDK: 
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Screenshots
+      description: If applicable, add screenshots to help explain the problem
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✔️ Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have read the project documentation
+          required: false

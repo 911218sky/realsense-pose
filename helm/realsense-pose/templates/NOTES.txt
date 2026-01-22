@@ -1,0 +1,33 @@
+🎉 RealSense Pose has been deployed!
+
+{{- if .Values.ingress.enabled }}
+📡 Access the application via Ingress:
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+📡 Access the application via NodePort:
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "realsense-pose.fullname" . }}-nginx)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "ClusterIP" .Values.service.type }}
+📡 Access the application via port-forward:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "realsense-pose.fullname" . }}-nginx {{ .Values.service.port }}:{{ .Values.service.port }}
+  Then visit: http://localhost:{{ .Values.service.port }}
+{{- end }}
+
+📊 Check deployment status:
+  kubectl --namespace {{ .Release.Namespace }} get pods -l "app.kubernetes.io/instance={{ .Release.Name }}"
+
+📝 View logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -l "app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=api" -f
+
+{{- if not .Values.mongodb.auth.rootPassword }}
+
+⚠️  WARNING: MongoDB root password is not set!
+    Please set it using: --set mongodb.auth.rootPassword=YOUR_PASSWORD
+{{- end }}
+
+📚 Documentation: https://github.com/911218sky/realsense-pose

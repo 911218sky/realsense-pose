@@ -1,0 +1,93 @@
+# 輸入 bag 檔案路徑（例如 ROS bag）
+# 說明：若為空字串，表示不指定檔案（依程式實作可能改成讀即時資料或拋錯）。
+# 範例: "/data/my_recording.bag"
+bag_file_path: ""
+
+# 輸出資料夾（處理結果、圖片、影片等會寫入此處）
+# 相對路徑或絕對路徑皆可。程式執行前建議確認資料夾已存在或程式會自動建立。
+output_dir: "./outputs"
+
+# 每多少幀處理一幀，0 表示每幀都處理
+skip_frames: 4
+
+# 最多處理的影格數（整數）
+# 說明：限制最大處理影格數以避免處理時間過長。
+# 範例: 10800 （大約 6 分鐘的 30fps 視訊）
+max_frames: 10800
+
+# 進度輸出間隔（每處理 N 幀就輸出一次進度）
+# 用途：控制終端或日誌的進度更新頻率，設定為較大的值可減少 I/O 次數。
+progress_interval: 200
+
+# 模型複雜度 / 精度等級（整數）
+# 建議範圍（依模型）：0 = 最快 / 較低精度；1 = 平衡；2 = 最佳精度（較慢）。
+# 說明：提升該值通常會增加處理時間與資源使用。
+model_complexity: 1
+
+# 解析度設定（預設使用 1280x720 以獲得更好的姿態估計精度）
+# 注意：實際解析度會從 bag 檔案中讀取，這些值僅作為初始預設值
+# 支援的解析度：1920x1080 @ 30fps, 1280x720 @ 30fps, 640x480 @ 30/60fps
+# width: 640
+# height: 480
+# fps: 30
+
+# 若為 true，載入 bag 初始化 pipeline 時會列印 bag 的完整 streams / 格式 / 內參等資訊（除錯用）
+dump_bag_info: false
+
+# 偵測信心閥值（浮點 0.0 ~ 1.0）
+# 說明：低於該值的偵測結果會被視為不可靠並被濾掉。提高可減少誤偵測，但可能漏掉弱偵測。
+min_detection_confidence: 0.5
+
+# 跟蹤信心閥值（浮點 0.0 ~ 1.0）
+# 說明：用於物件/關鍵點追蹤的信心閥值，同樣取值 0~1。
+min_tracking_confidence: 0.5
+
+# 日誌檔案路徑（相對或絕對）
+# 說明：寫入更詳細的處理資訊到檔案；若無需可以設為空或搭配 save_log 控制。
+log_file: "logs/processing.log"
+
+# 是否將日誌存檔（布林）
+# true -> 將日誌寫入上面 log_file 指定的檔案；false -> 只輸出到終端（或不輸出）。
+save_log: false
+
+# 是否將結果存為 npy 檔案（布林） 
+save_npy: true
+output_npy_filename: "pose.npy"
+
+# 是否校正姿態（布林）
+calibrate_pose: true
+
+# 輸出座標慣例：
+# - false: RealSense 相機座標（常見：x 向右、y 向下、z 向前）
+# - true : 翻轉 y 軸，讓 y「向上為正」，比較直覺好解讀
+y_axis_up: true
+
+# 是否將結果存為 pickle 檔案（布林）
+save_pickle: false
+output_pickle_filename: "pose.pickle"
+
+# 是否將結果存為 video 檔案（布林）
+save_video: true
+output_video_filename: "{filename}.mp4"
+
+# 畫上關節點的圓圈半徑 (當 save_video 為 true 時有效)
+circle_radius: 3
+
+# 畫上關節點的連線線條粗細 (當 save_video 為 true 時有效)
+line_thickness: 2
+
+# 錨點偵測設定
+# 是否自動偵測椅子與錐桶位置（布林）
+detect_anchors: true
+
+# 是否將偵測到的錨點位置存檔（布林）
+# true -> 將錨點資訊存為 JSON 檔案，供後續分析使用
+save_anchors: true
+
+# 椅子半徑範圍（公尺）[min, max]
+# 說明：用於圈數偵測時判斷是否進入椅子區域的半徑範圍
+chair_radius: [1.5, 1.7]
+
+# 錐桶半徑範圍（公尺）[min, max]
+# 說明：用於圈數偵測時判斷是否進入錐桶區域的半徑範圍
+cone_radius: [1.5, 1.7]

@@ -1,0 +1,17 @@
+{{- if .Values.api.persistence.data.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "realsense-pose.fullname" . }}-data
+  labels:
+    {{- include "realsense-pose.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.api.persistence.data.accessMode }}
+  {{- if .Values.api.persistence.data.storageClass }}
+  storageClassName: {{ .Values.api.persistence.data.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.api.persistence.data.size }}
+{{- end }}

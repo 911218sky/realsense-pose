@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "API Change Notification",
+  "description": "When API or DB files are modified, append change documentation to FRONTEND_API_CHANGES.md",
+  "version": "1",
+  "when": {
+    "type": "fileSaved",
+    "glob": "src/api/**/*.py"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "An API or DB model file was just saved. Please document this change:\n\n1. Check the git diff for the saved file to understand what changed\n2. If there are meaningful changes (new endpoints, modified schemas, DB model changes), APPEND a new entry to `FRONTEND_API_CHANGES.md`\n3. If it's just a minor refactor with no API/DB contract changes, skip the update\n\n**IMPORTANT:**\n- Only APPEND new changes to the file, do NOT modify or delete existing entries\n- Add new entry at the TOP of the file (after the header)\n- Previous entries can be deleted by the user, that's fine - just add the new one\n\n**Format for new entry:**\n\n```markdown\n## [YYYY-MM-DD] - <Feature/Fix Description>\n\n### Endpoint: `<METHOD> /api/v1/<path>` (or ### Model: `<ModelName>` for DB changes)\n\n**Changes:**\n- Added: <new fields/features>\n- Modified: <changed behavior>\n- Removed: <deprecated fields>\n\n**Schema:**\n```json\n{ \"field\": \"type\" }\n```\n\n**Breaking Changes:** Yes/No\n\n**Frontend Action Required:**\n- <what frontend needs to do>\n```\n\n**Rules:**\n- English only\n- Use today's date\n- Mark breaking changes clearly\n\nIf `FRONTEND_API_CHANGES.md` doesn't exist, create it with header `# Frontend API Changes` first, then add the entry."
+  }
+}
