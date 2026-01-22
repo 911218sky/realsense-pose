@@ -1,3 +1,8 @@
+---
+description: Git commit guidelines for this repository
+alwaysApply: true
+---
+
 # Git Commit Guidelines
 
 Scope: All commits to this repository

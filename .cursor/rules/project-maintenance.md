@@ -1,5 +1,7 @@
 ---
+description: Project maintenance guidelines for Python under src/
 alwaysApply: true
+globs: ["src/**/*.py"]
 ---
 
 # Project Maintenance Guidelines

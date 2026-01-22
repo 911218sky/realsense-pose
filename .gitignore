@@ -61,10 +61,6 @@ logs/
 # Web UI (downloaded from gait_charts releases)
 /web/
 
-# Cursor
-.cursor/
-.cursorignore
-
 # Kiro specs (keep local only)
 .kiro/specs/
 
