@@ -17,6 +17,8 @@ import re
 from pathlib import Path
 from typing import Iterable, Optional
 
+from utils.file import is_bag_path
+
 def resolve_bag_path(
     bag_path: str,
     *,
@@ -30,6 +32,9 @@ def resolve_bag_path(
     bag_path = (bag_path or "").strip()
     if not bag_path:
         raise ValueError("bag_path is empty")
+
+    if not is_bag_path(bag_path):
+        raise ValueError("only .bag files are supported")
 
     # 最直覺：先看使用者傳入的路徑在「容器內」是否真的存在
     raw = Path(bag_path)
@@ -66,7 +71,6 @@ def resolve_bag_path(
         f"bag file not found: {bag_path}. "
         f"Tried: {raw}"
     )
-
 
 def _map_windows_path_to_dataset_mount(
     bag_path: str,

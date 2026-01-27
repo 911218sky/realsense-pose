@@ -10,14 +10,14 @@ class ExtractRequest(BaseModel):
     """提取請求參數。"""
 
     force: bool = Field(False, description="若為 True，強制重新處理即便已有結果。")
-    skip_frames: int = Field(4, description="每處理一幀時跳過的帧數（降頻用）。")
-    max_frames: int = Field(10800, description="最多處理的帧數上限。")
+    skip_frames: int = Field(4, description="每處理一幀時跳過的幀數（降頻用）。")
+    max_frames: int = Field(10800, description="最多處理的幀數上限。")
     model_complexity: int = Field(1, description="MediaPipe pose model complexity 等級。")
     min_detection_confidence: float = Field(0.5, description="偵測最小信心分數。")
     min_tracking_confidence: float = Field(0.5, description="追蹤最小信心分數。")
     calibrate_pose: bool = Field(True, description="是否執行姿勢校正。")
     y_axis_up: bool = Field(True, description="若為 True，輸出座標會把 y 軸翻轉成向上為正（更直覺好解讀）。")
-    save_video: bool = Field(True, description="是否匯出帶有骨架標註的影片檔。")
+    save_video: bool = Field(True, description="是否匯出帶有骨架標註的影片檔案。")
 
 
 # ---------- Response models ----------
