@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import re
 
 def ensure_dir(path: str):
     """
@@ -117,3 +118,6 @@ def setup_logger(name: str, log_file: str | None = None, level: int = logging.IN
 
     logger.propagate = False
     return logger
+
+def is_bag_path(bag_path: str | Path) -> bool:
+    return re.search(r"\.bag(\.zst|\.zstd)?$", str(bag_path), flags=re.IGNORECASE) is not None

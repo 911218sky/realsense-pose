@@ -12,6 +12,7 @@ from pymongo import UpdateOne
 
 from api.config import BAG_DIR, DATASET_DIR, HOST_DATASET_DIR
 from db import BagFile
+from utils.file import is_bag_path
 from .models import BagFileItem, BagFileListResponse
 
 router = APIRouter()
@@ -53,7 +54,7 @@ def get_dataset_dir() -> Path:
 
 def _iter_bag_entries(base_dir: Path, recursive: bool):
     """
-    用 os.scandir 做較快的遞迴掃描（比 Path.rglob 省資源）。
+    用 os.scandir 做較快的遞迴掃描。
     """
     stack = [str(base_dir)]
     while stack:
@@ -66,7 +67,7 @@ def _iter_bag_entries(base_dir: Path, recursive: bool):
                             if recursive:
                                 stack.append(entry.path)
                             continue
-                        if entry.is_file(follow_symlinks=False) and entry.name.lower().endswith(".bag"):
+                        if entry.is_file(follow_symlinks=False) and is_bag_path(str(entry.path)):
                             yield entry
                     except Exception:
                         continue
@@ -160,7 +161,7 @@ async def list_server_bags(
     q: Optional[str] = Query(
         None,
         max_length=256,
-        description="關鍵字搜尋（優化版）：預設用「前綴匹配」走索引（name/bag_id），例如輸入 '1' 可快速匹配 '1_*.bag'。",
+        description="關鍵字搜尋：使用前綴匹配走索引（name/bag_id），例如輸入 '1' 可快速匹配 '1_*.bag'。",
     ),
 ) -> BagFileListResponse:
     """

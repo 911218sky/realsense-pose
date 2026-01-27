@@ -36,7 +36,7 @@ class DataLoader:
         )
         assert self.t is not None, "npy 缺少時間戳記"
         
-        # 載入錨點配置（如果存在）
+        # 載入錨點配置
         anchor_config: AnchorConfig | None = load_anchor_config(self.npy_path)
         assert anchor_config is None or "錨點配置檔案格式錯誤"
         self.anchor_config: AnchorConfig = anchor_config
