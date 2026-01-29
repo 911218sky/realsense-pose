@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 import zstandard as zstd
 
-from utils.file import is_bag_path
+from utils.file import is_compressed_bag
 from utils import add_prefix_to_filename
 
 
@@ -22,9 +22,8 @@ class BagIOMixin:
         一般 .bag 檔直接回傳原路徑。
         """
         suffixes = {s.lower() for s in bag_path.suffixes}
-        is_zstd_ext = (".zst" in suffixes) or (".zstd" in suffixes)
 
-        if is_zstd_ext or is_bag_path(bag_path):
+        if is_compressed_bag(bag_path):
             self.logger.info(f"偵測到 zstd 壓縮檔: {bag_path}")
 
             dctx = zstd.ZstdDecompressor()

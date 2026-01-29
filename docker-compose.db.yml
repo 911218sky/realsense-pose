@@ -1,9 +1,9 @@
-name: realsense-pose_db
+name: realsense-pose-dev
 
 services:
   mongo:
     image: mongo:8.0.13
-    container_name: ${MONGO_CONTAINER_NAME:-realsense-pose-mongo}
+    container_name: ${MONGO_CONTAINER_NAME:-realsense-pose-mongo-dev}
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
@@ -24,7 +24,7 @@ services:
 
   redis:
     image: redis:8.4.0
-    container_name: ${REDIS_CONTAINER_NAME:-realsense-pose-redis}
+    container_name: ${REDIS_CONTAINER_NAME:-realsense-pose-redis-dev}
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"

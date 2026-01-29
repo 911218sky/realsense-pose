@@ -17,7 +17,7 @@ import re
 from pathlib import Path
 from typing import Iterable, Optional
 
-from utils.file import is_bag_path
+from utils.file import is_bag_file
 
 def resolve_bag_path(
     bag_path: str,
@@ -33,7 +33,7 @@ def resolve_bag_path(
     if not bag_path:
         raise ValueError("bag_path is empty")
 
-    if not is_bag_path(bag_path):
+    if not is_bag_file(bag_path):
         raise ValueError("only .bag files are supported")
 
     # 最直覺：先看使用者傳入的路徑在「容器內」是否真的存在

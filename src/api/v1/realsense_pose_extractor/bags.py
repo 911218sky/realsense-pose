@@ -12,7 +12,7 @@ from pymongo import UpdateOne
 
 from api.config import BAG_DIR, DATASET_DIR, HOST_DATASET_DIR
 from db import BagFile
-from utils.file import is_bag_path
+from utils.file import is_bag_file
 from .models import BagFileItem, BagFileListResponse
 
 router = APIRouter()
@@ -67,7 +67,7 @@ def _iter_bag_entries(base_dir: Path, recursive: bool):
                             if recursive:
                                 stack.append(entry.path)
                             continue
-                        if entry.is_file(follow_symlinks=False) and is_bag_path(str(entry.path)):
+                        if entry.is_file(follow_symlinks=False) and is_bag_file(str(entry.path)):
                             yield entry
                     except Exception:
                         continue

@@ -1,0 +1,73 @@
+{
+  // ========== Python 語言伺服器設定 ==========
+  "python.languageServer": "None",
+  // ========== 編輯器設定 ==========
+  "editor.semanticHighlighting.enabled": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  // ========== BasedPyright 分析設定 ==========
+  "basedpyright.analysis.autoImportCompletions": true,
+  "basedpyright.analysis.autoSearchPaths": true,
+  "basedpyright.analysis.diagnosticMode": "openFilesOnly",
+  "basedpyright.analysis.useLibraryCodeForTypes": true,
+  "basedpyright.analysis.typeCheckingMode": "basic",
+  // ========== BasedPyright 診斷規則設定 ==========
+  "basedpyright.analysis.diagnosticSeverityOverrides": {
+    // 關閉 Any 類型相關警告（numpy 操作常見，保持關閉）
+    "reportAny": "none",
+    "reportExplicitAny": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownParameterType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportUnknownMemberType": "none",
+    // 代碼品質檢查（建議開啟）
+    "reportRedeclaration": "warning",
+    "reportConstantRedefinition": "warning",
+    "reportUnnecessaryIsInstance": "warning",
+    // 未使用的變數和導入（設為 error）
+    "reportUnusedVariable": "error",
+    "reportUnusedImport": "error",
+    "reportUnusedClass": "warning",
+    "reportUnusedFunction": "warning",
+    // 類型註解提示
+    "reportMissingParameterType": "warning",
+    "reportUnannotatedClassAttribute": "none",
+    // 框架特定問題（保持關閉）
+    "reportIncompatibleMethodOverride": "none", // FastAPI 依賴注入
+    "reportCallIssue": "none", // Beanie 模型 Optional 字段
+    "reportArgumentType": "none", // Beanie 模型問題
+    "reportAttributeAccessIssue": "none", // Mixin 類常見
+    "reportReturnType": "none", // 類型推斷問題
+    // 核心類型錯誤檢查（保持警告級別）
+    "reportGeneralTypeIssues": "warning",
+    "reportOptionalMemberAccess": "warning",
+    "reportOptionalSubscript": "warning",
+    "reportOptionalCall": "warning",
+    "reportOperatorIssue": "warning"
+  },
+  // ========== 檔案排除設定 ==========
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true
+  },
+  // ========== 檔案監視排除 ==========
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/venv/**": true,
+    "**/data/**": true,
+    "**/dataset/**": true,
+    "**/outputs/**": true,
+    "**/backups/**": true
+  },
+  // ========== Python 測試設定 ==========
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+}
