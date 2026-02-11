@@ -21,8 +21,6 @@ class BagIOMixin:
         zstd 壓縮檔（.bag.zst / .zst / .zstd）會先解壓到暫存檔，
         一般 .bag 檔直接回傳原路徑。
         """
-        suffixes = {s.lower() for s in bag_path.suffixes}
-
         if is_compressed_bag(bag_path):
             self.logger.info(f"偵測到 zstd 壓縮檔: {bag_path}")
 
@@ -42,13 +40,19 @@ class BagIOMixin:
                 self._temp_bag_path = tmp_path
                 return str(tmp_path)
             except Exception as e:
+                error_msg = str(e)
                 self.logger.error(f"解壓失敗 {bag_path}: {e}")
+                
                 try:
                     if tmp_path.exists():
                         tmp_path.unlink()
                 except Exception:
                     pass
-                raise
+                
+                raise RuntimeError(
+                    f"Zstd 解壓失敗 ({bag_path.name}): {error_msg}. "
+                    "檔案可能損壞或不是有效的 zstd 壓縮檔案。"
+                ) from e
         else:
             return str(bag_path)
 

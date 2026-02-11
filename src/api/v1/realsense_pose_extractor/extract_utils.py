@@ -79,12 +79,33 @@ async def resolve_bag_path_obj(bag_input: str) -> Path:
     """把輸入的 bag_id/bag_path 解析成實際可讀取的檔案路徑。"""
     try:
         dataset_dir = get_dataset_dir()
-        return resolve_bag_path(
+        resolved_path = resolve_bag_path(
             bag_input,
             host_dataset_dir=HOST_DATASET_DIR,
             dataset_mount_dir=dataset_dir,
             search_dirs=[dataset_dir, Path(BAG_DIR)],
         )
+        
+        # 驗證檔案確實存在且可讀取
+        if not resolved_path.exists():
+            raise FileNotFoundError(
+                f"Bag 檔案不存在: {bag_input} (解析路徑: {resolved_path})"
+            )
+        
+        if not resolved_path.is_file():
+            raise ValueError(
+                f"路徑不是檔案: {resolved_path}"
+            )
+        
+        # 檢查檔案大小（0 bytes 通常表示損壞）
+        file_size = resolved_path.stat().st_size
+        if file_size == 0:
+            raise ValueError(
+                f"Bag 檔案大小為 0: {resolved_path.name}. 檔案可能損壞或未完整下載。"
+            )
+        
+        return resolved_path
+        
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 

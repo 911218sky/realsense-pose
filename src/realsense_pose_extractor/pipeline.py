@@ -280,6 +280,26 @@ class PipelineMixin:
                 pipeline.stop()
             except Exception:
                 pass
-            self.logger.error(f"Pipeline 初始化失敗: {e}")
-            raise
+            
+            # 提供更清楚的錯誤訊息
+            error_msg = str(e)
+            if "Unknown frame descriptor" in error_msg or "zstd decompressor error" in error_msg:
+                self.logger.error(
+                    f"Bag 檔案讀取失敗: {e}\n"
+                    f"可能原因:\n"
+                    f"  1. Bag 檔案損壞或格式不相容\n"
+                    f"  2. Bag 檔案使用了不支援的壓縮格式\n"
+                    f"  3. pyrealsense2 版本與 bag 檔案不相容\n"
+                    f"建議:\n"
+                    f"  - 檢查 bag 檔案是否完整\n"
+                    f"  - 嘗試使用 realsense-viewer 開啟檔案驗證\n"
+                    f"  - 確認 bag 檔案是由相容版本的 RealSense SDK 錄製"
+                )
+                raise RuntimeError(
+                    f"Bag 檔案讀取失敗 ({self.bag_file_path}): {error_msg}. "
+                    "檔案可能損壞、格式不相容，或使用了不支援的壓縮格式。"
+                ) from e
+            else:
+                self.logger.error(f"Pipeline 初始化失敗: {e}")
+                raise
 

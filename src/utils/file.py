@@ -121,15 +121,20 @@ def setup_logger(name: str, log_file: str | None = None, level: int = logging.IN
 
 def is_bag_file(bag_path: str | Path) -> bool:
     """
-    判別是否為 bag 檔案（.bag）。
+    判別是否為 bag 檔案（.bag 或壓縮的 .bag.zst / .bag.zstd）。
     
     參數:
         bag_path: 檔案路徑
         
     回傳:
-        True 如果是 bag 檔案，否則 False
+        True 如果是 bag 檔案或壓縮的 bag 檔案，否則 False
     """
-    return re.search(r"\.bag$", str(bag_path), flags=re.IGNORECASE) is not None
+    path_str = str(bag_path)
+    # 接受 .bag 或 .bag.zst / .bag.zstd
+    return (
+        re.search(r"\.bag$", path_str, flags=re.IGNORECASE) is not None
+        or re.search(r"\.bag\.(zst|zstd)$", path_str, flags=re.IGNORECASE) is not None
+    )
 
 def is_compressed_bag(bag_path: str | Path) -> bool:
     """
@@ -141,4 +146,5 @@ def is_compressed_bag(bag_path: str | Path) -> bool:
     回傳:
         True 如果是壓縮的 bag 檔案，否則 False
     """
+    # 檢查是否以 .zst 或 .zstd 結尾（通常是 .bag.zst 或 .bag.zstd）
     return re.search(r"\.(zst|zstd)$", str(bag_path), flags=re.IGNORECASE) is not None
