@@ -65,7 +65,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         run: |
-          echo "${{ secrets.PAT_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
       - name: Package Helm Chart
         run: helm package helm/realsense-pose/ -d .
